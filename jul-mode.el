@@ -54,9 +54,9 @@
 (defcustom jul-package-repos
 	'(("frusen-stable" . "http://gungre.ch/dragora/repo/frusen/stable/")
 		("frusen-oldstable" . "http://gungre.ch/dragora/repo/frusen/old-stable/")
-		("frusen-unstable" . "http:///gungre.ch/dragora/repo/frusen/unstable/")
-		("kelsoo" . "http:///gungre.ch/dragora/repo/kelsoo")
-		("mp" . "http:///gungre.ch/dragora/repo/frusen/mprodrigues/"))
+		("frusen-unstable" . "http://gungre.ch/dragora/repo/frusen/unstable/")
+		("kelsoo" . "http://gungre.ch/dragora/repo/kelsoo/")
+		("mp" . "http://gungre.ch/dragora/repo/mprodrigues/"))
   "An alist of archives from which to fetch.
 The defaults include all the repos found on the gungre.ch site.
 Note that frusen has 3 different ones.
@@ -108,12 +108,18 @@ Slots:
 	"This list contains all the packages that are currently installed on your
 system.  Each element is of the form (NAME . J-PKG-DESC) where NAME is the name
 of the package and J-PKG-DESC is a cl-struct-jul-package-desc.")
+(put '*jul-package-installed* 'risky-local-variable t)
 
 (defvar *jul-package-repo* nil
 	"This list contains all the packages that are currently on the gungre.ch
 server.  Each element is of the form (NAME . J-PKG-DESC) where NAME is the name
 of the package and J-PKG-DESC is a cl-struct-jul-package-desc.")
+(put '*jul-package-repo* 'risky-local-variable t)
 
+(defvar *jul-package-dir* "~/.emacs.d/elpa/jul-mode/"
+	"This variable contains the directory in which jul-mode stuff is done
+temporarily.")
+(put '*jul-package-dir* 'risky-local-variable t)
 
 (define-derived-mode jul-menu-mode tabulated-list-mode "Jul Package Menu"
 	"Major mode for browsing a list of packages"
@@ -153,20 +159,32 @@ buffer is killed afterwards.  Return the last value in BODY."
        (insert-file-contents (expand-file-name ,file ,location)))
      ,@body))
 
-(defun jul-package--download-one-archive (repo file)
-  "Retrieve an archive file FILE from ARCHIVE, and cache it.
-ARCHIVE should be a cons cell of the form (NAME . LOCATION),
-similar to an entry in `package-alist'.  Save the cached copy to
-\"archives/NAME/archive-contents\" in `package-user-dir'."
+(defun jul-package--download-one-repo (repo server-file file)
+  "Retrieve an repo FILE from REPO, and cache it.
+REPO should be a cons cell of the form (NAME . LOCATION),
+similar to an entry in `*jul-package-repo*'.  Save the cached copy to
+`*jul-package-dir*' under the 'repos/' directory.
+SERVER-FILE is the name of the file on the server.  Since sometimes this must be
+empty, we need two seperate args; one for server name and the other for the
+local name."
   (let ((dir (expand-file-name (format "repos/%s" (car repo))
-			       "~/Desktop/Developing/jul-mode"))) ;this directory will change
-    (package--with-work-buffer (cdr repo) file
+															 *jul-package-dir*)))
+    (package--with-work-buffer (cdr repo) server-file
       ;; Read the retrieved buffer to make sure it is valid (e.g. it
       ;; may fetch a URL redirect page).
       ;; (when (stringp (read (current-buffer)))
 			(progn
 				(make-directory dir t)
         (write-region nil nil (expand-file-name file dir) nil 'silent)))))
+
+(defun jul-package-refresh-contents ()
+	"Updates the temp files with the newest HTML snapshot of the server. This HTML
+data will then be parsed to get use the current directories in each repo."
+	(unless (file-directory-p *jul-package-dir*)
+		(make-directory *jul-package-dir*))
+	(dolist (elt jul-package-repos)
+		(let ((name (car elt)))
+			(jul-package--download-one-repo elt "" name))))
 
 (defun jul-package-menu--print-info (pkg-desc)
 	"Convert the complicated jul-package-desc-struct, to something the tabulated
@@ -224,8 +242,8 @@ repo."
 	(let* ((buf (get-buffer-create "*jul-package-list*"))
 				 (win (get-buffer-window buf)))
 		(with-current-buffer buf
-      (jul-menu-mode)  ;this is in the archives section
-			;; (jul-package-refresh-contents)		;Does not exist yet.
+      (jul-menu-mode)
+			(jul-package-refresh-contents)
       (jul-package-menu--generate nil packages))
 		(if win
 				(select-window win)
