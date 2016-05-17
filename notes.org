@@ -247,3 +247,16 @@ or a list of package names (symbols) to display."
   (tabulated-list-init-header)
   (tabulated-list-print remember-pos))
 	 #+End_SRC
+
+* Remember this stuff
+
+	Because I don't have parsing from the server working yet, you have to manually
+	set the "global" variables `*jul-package-installed*' and `*jul-package-repo*'.
+	The best way to do this is using eshell and running the following commands:
+
+	#+BEGIN_SRC emacs-lisp
+(setf repo (cons (cons "sbcl" (jul-package-desc-from-define "sbcl" "1.3.1" "frusen-unstable")) repo))
+	#+End_SRC
+
+	Then change the values and all that good stuff. Then make another variable
+	called `installed' or something. Then you can easily "setf" those variables!
