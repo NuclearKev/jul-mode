@@ -101,12 +101,14 @@ Slots:
   version
   repo)
 
-(defvar jul-package-installed nil
+;; Although not common Emacs Lisp practice, I find it helpful to have earmuffs
+;; on the "global" variables.
+(defvar *jul-package-installed* nil
 	"This list contains all the packages that are currently installed on your
 system.  Each element is of the form (NAME . J-PKG-DESC) where NAME is the name
 of the package and J-PKG-DESC is a cl-struct-jul-package-desc.")
 
-(defvar jul-package-repo nil
+(defvar *jul-package-repo* nil
 	"This list contains all the packages that are currently on the gungre.ch
 server.  Each element is of the form (NAME . J-PKG-DESC) where NAME is the name
 of the package and J-PKG-DESC is a cl-struct-jul-package-desc.")
@@ -152,14 +154,14 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
   (let ((info-list nil)
 				(name nil))
     ;; Installed packages:
-    (dolist (elt jul-package-installed) ;needs to be updated before this
+    (dolist (elt *jul-package-installed*) ;needs to be updated before this
       (setq name (car elt))
       (when packages
 				(setq info-list
 							(cons (jul-package--push (cdr elt) info-list) info-list))))
 
     ;; Uninstalled Packages:
-    (dolist (elt jul-package-repo) ;needs to be updated before this
+    (dolist (elt *jul-package-repo*) ;needs to be updated before this
       (setq name (car elt))
       (when (or (eq packages t) (memq name packages))
 				(setq info-list
