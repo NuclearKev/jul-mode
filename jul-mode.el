@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 17 May 2016 - Got commication with server.
 ;; 16 May 2016 - Created package. On this day, I got something working.
 
 ;;; Commentary:
@@ -34,7 +35,7 @@
 
 ;;; Todo:
 
-;; * Get communication with server
+;; * Get probing of a directory working
 ;; * Get parsing of server working
 ;; * Get downloading from server working
 ;; * Get installation and upgrading working
@@ -61,11 +62,11 @@ The defaults include all the repos found on the gungre.ch site.
 Note that frusen has 3 different ones.
 
 Each element has the form (ID . LOCATION).
- ID is an archive name, as a string.
- LOCATION specifies the base location for the archive.
-  If it starts with \"http:\", it is treated as a HTTP URL;
-  otherwise it should be an absolute directory name.
-  (Other types of URL are currently not supported.)
+ID is an archive name, as a string.
+LOCATION specifies the base location for the archive.
+If it starts with \"http:\", it is treated as a HTTP URL;
+otherwise it should be an absolute directory name.
+ (Other types of URL are currently not supported.)
 
 Only add locations that you trust, since fetching and installing
 a package can run arbitrary code."
@@ -133,6 +134,40 @@ to be printed to the screen."
 	(unless (member pkg-desc listname)
 		pkg-desc))
 
+(defmacro jul-package--with-work-buffer (location file &rest body)
+  "Run BODY in a buffer containing the contents of FILE at LOCATION.
+LOCATION is the base location of a package archive, and should be
+one of the URLs (or file names) specified in `package-archives'.
+FILE is the name of a file relative to that base location.
+
+This macro retrieves FILE from LOCATION into a temporary buffer,
+and evaluates BODY while that buffer is current.  This work
+buffer is killed afterwards.  Return the last value in BODY."
+  (declare (indent 2) (debug t))
+  `(with-temp-buffer
+     (if (string-match-p "\\`https?:" ,location)
+				 (url-insert-file-contents (concat ,location ,file))
+       (unless (file-name-absolute-p ,location)
+				 (error "Repo location %s is not an absolute file name"
+								,location))
+       (insert-file-contents (expand-file-name ,file ,location)))
+     ,@body))
+
+(defun jul-package--download-one-archive (repo file)
+  "Retrieve an archive file FILE from ARCHIVE, and cache it.
+ARCHIVE should be a cons cell of the form (NAME . LOCATION),
+similar to an entry in `package-alist'.  Save the cached copy to
+\"archives/NAME/archive-contents\" in `package-user-dir'."
+  (let ((dir (expand-file-name (format "repos/%s" (car repo))
+			       "~/Desktop/Developing/jul-mode"))) ;this directory will change
+    (package--with-work-buffer (cdr repo) file
+      ;; Read the retrieved buffer to make sure it is valid (e.g. it
+      ;; may fetch a URL redirect page).
+      ;; (when (stringp (read (current-buffer)))
+			(progn
+				(make-directory dir t)
+        (write-region nil nil (expand-file-name file dir) nil 'silent)))))
+
 (defun jul-package-menu--print-info (pkg-desc)
 	"Convert the complicated jul-package-desc-struct, to something the tabulated
 mode can read.  PKG-DESC is of form jul-package-desc-struct"
@@ -144,6 +179,8 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
 					 (setf status "old-stable"))
 					((equal repo "frusen-unstable")
 					 (setf status "unstable"))
+					((equal repo "installed")
+					 (setf status " "))						;who knows once it's installed!
 					(t
 					 (setf status "stable")))
 		`(,pkg-desc ,`[,(list (symbol-name name)) ,version ,status ,repo])))
@@ -188,6 +225,7 @@ repo."
 				 (win (get-buffer-window buf)))
 		(with-current-buffer buf
       (jul-menu-mode)  ;this is in the archives section
+			;; (jul-package-refresh-contents)		;Does not exist yet.
       (jul-package-menu--generate nil packages))
 		(if win
 				(select-window win)

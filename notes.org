@@ -25,7 +25,8 @@
 	 stable. Also note that it will show all installed packages on the system and
 	 the repo is "installed." There is no status on these. The first column in an
 	 indicator column that lets you know if you have selected that package for
-	 installation, removal, or upgrading.
+	 installation, removal, or upgrading. *NOTE: DESCRIPTION MOST LIKELY WON'T BE
+	 THERE!*
 
 *** Other Appearances
 		The main buffer is what people will probably use most; however, if you which
