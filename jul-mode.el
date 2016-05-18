@@ -249,4 +249,24 @@ repo."
 				(select-window win)
 			(switch-to-buffer buf))))
 
+(defvar *testing* nil)
+*testing*
+
+
+;; (defun parsing-loop ()
+;; 	(let ((item (search-forward "<a href=\"" nil t))
+;; 				(first-point (point)))
+;; 		(if (integerp item)
+;; 				(progn
+;; 					(search-forward "\"" nil t)
+;; 					(copy-region-as-kill first-point (- (point) 1))
+;; 					(setf *testing* (cons (car kill-ring) *testing*))
+;; 					(parsing-loop))
+;; 			nil)))
+
+;; (defun parse-repo (filename)
+;; 	(with-temp-buffer
+;; 		(insert-file-contents-literally filename)
+;; 		(parsing-loop)))
+
 ;;; jul-mode.el ends here
