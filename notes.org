@@ -1,7 +1,5 @@
 #+Title: Outline of Jul-mode
 
-# for emacs packages
-
 * Basic Outline of jul-mode
 	This will contain the basic concepts behind the mode. Things like how it
 	should look, how it should act, and what it should do will be discussed.
@@ -248,6 +246,7 @@ or a list of package names (symbols) to display."
   (tabulated-list-init-header)
   (tabulated-list-print remember-pos))
 	 #+End_SRC
+
 
 * Remember this stuff
 

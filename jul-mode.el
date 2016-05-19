@@ -1,10 +1,11 @@
+
 ;;; jul-mode.el --- Simple package system for Dragora -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2016 Kevin Bloom <kdb4@openmailbox.org>
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.1
+;; Version: 0.2
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -23,6 +24,7 @@
 
 ;;; Changelog:
 
+;; 19 May 2016 - Got pulling of all repos and listing them on screen working.
 ;; 17 May 2016 - Got commication with server.
 ;; 16 May 2016 - Created package. On this day, I got something working.
 
@@ -36,8 +38,6 @@
 ;;; Todo:
 
 ;; * Get probing of a directory working
-;; * Get parsing of server working
-;; * Get downloading from server working
 ;; * Get installation and upgrading working
 
 ;;; Code:
@@ -49,14 +49,12 @@
 (defgroup jul-package nil
   "Manager for Dragora User packages."
   :group 'applications
-  :version "0.1")
+  :version "0.2")
 
 (defcustom jul-package-repos
-	'(("frusen-stable" . "http://gungre.ch/dragora/repo/frusen/stable/")
-		("frusen-oldstable" . "http://gungre.ch/dragora/repo/frusen/old-stable/")
-		("frusen-unstable" . "http://gungre.ch/dragora/repo/frusen/unstable/")
+	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
 		("kelsoo" . "http://gungre.ch/dragora/repo/kelsoo/")
-		("mp" . "http://gungre.ch/dragora/repo/mprodrigues/"))
+		("mprodrigues" . "http://gungre.ch/dragora/repo/mprodrigues/"))
   "An alist of archives from which to fetch.
 The defaults include all the repos found on the gungre.ch site.
 Note that frusen has 3 different ones.
@@ -74,7 +72,7 @@ a package can run arbitrary code."
                 :value-type (string :tag "URL or directory name"))
   :risky t
   :group 'jul-package
-  :version "0.1")
+  :version "0.2")
 
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
@@ -84,23 +82,31 @@ a package can run arbitrary code."
                ;; options can be supported by adding additional keys.
                (:constructor
                 jul-package-desc-from-define
-                (name-string version-string repo-string
+                (name-string version-string arch-string repo-string build-string
 														 &aux
 														 (name (intern name-string))
 														 (version version-string)
-														 (repo repo-string))))
+														 (arch arch-string)
+														 (repo repo-string)
+														 (build build-string))))
   "Structure containing information about an individual package.
 Slots:
 
-`name'	Name of the package, as a symbol.
+`name'	Name of the package, as a symbol
 
 `version' Version of the package, as a string
 
-`repo' The name of the archive (as a string) whence this
+`arch' Architecture of the package, as a string
+
+`repo' The name of the archive (as a string) whence this came
+
+`build' The current build, as a string
 	package came."
   name
   version
-  repo)
+	arch
+  repo
+	build)
 
 ;; Although not common Emacs Lisp practice, I find it helpful to have earmuffs
 ;; on the "global" variables.
@@ -121,11 +127,16 @@ of the package and J-PKG-DESC is a cl-struct-jul-package-desc.")
 temporarily.")
 (put '*jul-package-dir* 'risky-local-variable t)
 
+(defvar *jul-database* "http://gungre.ch/jul/"
+	"Contains the directory that holds the .db files for jul")
+(put '*jul-database* 'risky-local-variable t)
+
 (define-derived-mode jul-menu-mode tabulated-list-mode "Jul Package Menu"
 	"Major mode for browsing a list of packages"
 	(setq tabulated-list-format
         `[("Package" 18 nil) ;there will eventually be something (not just nil)
           ("Version" 13 nil)
+					("Arch" 10 nil)
           ("Status"  10 nil)
 					("Repo" 10 nil)])
 	(setq tabulated-list-padding 2)
@@ -139,6 +150,44 @@ temporarily.")
 to be printed to the screen."
 	(unless (member pkg-desc listname)
 		pkg-desc))
+
+(defun jul-hyphenated-name-fixer (split-pack)
+	(if (> (length split-pack) 4)
+			(let* ((fir-word (car split-pack))
+						 (sec-word (cadr split-pack))
+						 (new-word (concat fir-word "-" sec-word)))
+				(jul-hyphenated-name-fixer (cons new-word (remove sec-word
+																											(remove fir-word
+																															split-pack)))))
+		split-pack))
+
+(defun jul-parse-n-place (file repo)
+	(with-temp-buffer
+		(insert-file-contents file)
+		(let ((num-of-packs (count-lines (point-min) (point-max)))
+					(current-pack 0)
+					(pack-list nil))
+			(while (< current-pack num-of-packs)
+				(let ((first-point (point)))
+					(end-of-line)
+					(copy-region-as-kill first-point (point))
+					(let* ((split-pack (jul-hyphenated-name-fixer
+															(split-string (car kill-ring) "-")))
+								 (struct-pack (jul-package-desc-from-define
+															 (car split-pack)
+															 (cadr split-pack)
+															 (caddr split-pack)
+															 repo
+															 (car (split-string
+																		 (cadddr split-pack) ".tlz")))))
+						(setf pack-list (cons (cons
+																	 (jul-package-desc-name struct-pack)
+																	 struct-pack)
+																	pack-list)))
+					(forward-line)
+					(beginning-of-line))
+				(setf current-pack (+ current-pack 1)))
+			pack-list)))
 
 (defmacro jul-package--with-work-buffer (location file &rest body)
   "Run BODY in a buffer containing the contents of FILE at LOCATION.
@@ -159,7 +208,7 @@ buffer is killed afterwards.  Return the last value in BODY."
        (insert-file-contents (expand-file-name ,file ,location)))
      ,@body))
 
-(defun jul-package--download-one-repo (repo server-file file)
+(defun jul-package--download-one-repo (repo file)
   "Retrieve an repo FILE from REPO, and cache it.
 REPO should be a cons cell of the form (NAME . LOCATION),
 similar to an entry in `*jul-package-repo*'.  Save the cached copy to
@@ -169,7 +218,7 @@ empty, we need two seperate args; one for server name and the other for the
 local name."
   (let ((dir (expand-file-name (format "repos/%s" (car repo))
 															 *jul-package-dir*)))
-    (package--with-work-buffer (cdr repo) server-file
+    (jul-package--with-work-buffer (cdr repo) file
       ;; Read the retrieved buffer to make sure it is valid (e.g. it
       ;; may fetch a URL redirect page).
       ;; (when (stringp (read (current-buffer)))
@@ -182,26 +231,33 @@ local name."
 data will then be parsed to get use the current directories in each repo."
 	(unless (file-directory-p *jul-package-dir*)
 		(make-directory *jul-package-dir*))
+	(setf *jul-package-repo* nil)					;clear current uninstalled items
 	(dolist (elt jul-package-repos)
-		(let ((name (car elt)))
-			(jul-package--download-one-repo elt "" name))))
+		(let* ((name (car elt))
+					 (location (cdr elt))
+					 (database (cons name *jul-database*))
+					 (db-file-name (concat name ".db"))
+					 (db-location
+						(concat *jul-package-dir* "repos/" name "/"  db-file-name)))
+			(jul-package--download-one-repo database db-file-name)
+			(setf *jul-package-repo* (append
+																(jul-parse-n-place db-location name)
+																*jul-package-repo*)))))
+
 
 (defun jul-package-menu--print-info (pkg-desc)
 	"Convert the complicated jul-package-desc-struct, to something the tabulated
 mode can read.  PKG-DESC is of form jul-package-desc-struct"
   (let ((name (jul-package-desc-name pkg-desc))
 				(version (jul-package-desc-version pkg-desc))
+				(arch (jul-package-desc-arch pkg-desc))
 				(repo (jul-package-desc-repo pkg-desc))
 				(status nil))
-		(cond ((equal repo "frusen-oldstable")
-					 (setf status "old-stable"))
-					((equal repo "frusen-unstable")
-					 (setf status "unstable"))
-					((equal repo "installed")
+		(cond ((equal repo "installed")
 					 (setf status " "))						;who knows once it's installed!
 					(t
 					 (setf status "stable")))
-		`(,pkg-desc ,`[,(list (symbol-name name)) ,version ,status ,repo])))
+		`(,pkg-desc ,`[,(list (symbol-name name)) ,version ,arch ,status ,repo])))
 
 (defun jul-package-menu--refresh (&optional packages)
 	"Refresh the displayed menu"
@@ -209,11 +265,11 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
   (let ((info-list nil)
 				(name nil))
     ;; Installed packages:
-    (dolist (elt *jul-package-installed*) ;needs to be updated before this
-      (setq name (car elt))
-      (when packages
-				(setq info-list
-							(cons (jul-package--push (cdr elt) info-list) info-list))))
+    ;; (dolist (elt *jul-package-installed*) ;needs to be updated before this
+    ;;   (setq name (car elt))
+    ;;   (when packages
+		;; 		(setq info-list
+		;; 					(cons (jul-package--push (cdr elt) info-list) info-list))))
 
     ;; Uninstalled Packages:
     (dolist (elt *jul-package-repo*) ;needs to be updated before this
@@ -235,7 +291,7 @@ or a list of package names (symbols) to display."
   (tabulated-list-init-header)
   (tabulated-list-print remember-pos))
 
-(defun jul-mode (&optional packages)
+(defun jul-list-package (&optional packages)
  	"A mode used to browser, install, and remove Dragora binaries from the user
 repo."
 	(interactive)
@@ -249,24 +305,5 @@ repo."
 				(select-window win)
 			(switch-to-buffer buf))))
 
-(defvar *testing* nil)
-*testing*
-
-
-;; (defun parsing-loop ()
-;; 	(let ((item (search-forward "<a href=\"" nil t))
-;; 				(first-point (point)))
-;; 		(if (integerp item)
-;; 				(progn
-;; 					(search-forward "\"" nil t)
-;; 					(copy-region-as-kill first-point (- (point) 1))
-;; 					(setf *testing* (cons (car kill-ring) *testing*))
-;; 					(parsing-loop))
-;; 			nil)))
-
-;; (defun parse-repo (filename)
-;; 	(with-temp-buffer
-;; 		(insert-file-contents-literally filename)
-;; 		(parsing-loop)))
 
 ;;; jul-mode.el ends here
