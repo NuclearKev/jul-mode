@@ -24,6 +24,7 @@
 
 ;;; Changelog:
 
+;; 20 May 2016 - Started adding keys for doing tasks.
 ;; 19 May 2016 - Got pulling of all repos and listing them on screen working.
 ;; 17 May 2016 - Got commication with server.
 ;; 16 May 2016 - Created package. On this day, I got something working.
@@ -38,7 +39,7 @@
 ;;; Todo:
 
 ;; * Get probing of a directory working
-;; * Get installation and upgrading working
+;; * Get installation, upgrading, and removal working.
 
 ;;; Code:
 
@@ -131,12 +132,78 @@ temporarily.")
 	"Contains the directory that holds the .db files for jul")
 (put '*jul-database* 'risky-local-variable t)
 
-(define-derived-mode jul-menu-mode tabulated-list-mode "Jul Package Menu"
+(defvar jul-package-menu-mode-map
+  (let ((map (make-sparse-keymap))
+				(menu-map (make-sparse-keymap "jul-package")))
+    (set-keymap-parent map tabulated-list-mode-map)
+    (define-key map "u" 'jul-package-menu-mark-unmark)
+    (define-key map "d" 'jul-package-menu-mark-delete)
+    (define-key map "i" 'jul-package-menu-mark-install)
+    (define-key map "U" 'jul-package-menu-mark-upgrades)
+    (define-key map "r" 'jul-package-menu-refresh)
+    (define-key map "f" 'jul-package-menu-filter)
+    (define-key map "x" 'jul-package-menu-execute)
+    (define-key menu-map [mq]
+      '(menu-item "Quit" quit-window
+									:help "Quit package selection"))
+    (define-key menu-map [s1] '("--"))
+    (define-key menu-map [mn]
+      '(menu-item "Next" next-line
+									:help "Next Line"))
+    (define-key menu-map [mp]
+      '(menu-item "Previous" previous-line
+									:help "Previous Line"))
+		(define-key menu-map [mi]
+      '(menu-item "Mark for Install" jul-package-menu-mark-install
+									:help "Mark package for installation, move to the next line"))
+		(define-key menu-map [mu]
+      '(menu-item "Remove mark" jul-package-menu-mark-unmark
+									:help "Unmark a package from removal, installation, etc."))
+		(define-key menu-map [md]
+      '(menu-item "Mark for Removal" jul-package-menu-mark-delete
+									:help "Mark package for removal, move to the next line"))
+				;; (define-key menu-map [mupgrades]
+    ;;   '(menu-item "Mark Upgradable Packages" jul-package-menu-mark-upgrades
+		;; 							:help "Mark packages that need upgraded"))
+		;; (define-key menu-map [mx]
+    ;;   '(menu-item "Execute Actions" jul-package-menu-execute
+		;; 							:help "Perform all the marked actions"))
+    map)
+  "Local keymap for `jul-package-menu-mode' buffers.")
+
+(defun jul-package-menu-mark-delete (&optional _num)
+	"Mark current package for deletion/removal and move to the next line."
+	(interactive "p")
+	(if (string= (jul-package-menu-get-repo) "installed")
+			(tabulated-list-put-tag "D" t)
+		(forward-line)))
+
+(defun jul-package-menu-mark-unmark (&optional _num)
+	"Clear any marks on a package and move to the next line."
+	(interactive "p")
+	(tabulated-list-put-tag " " t))
+
+(defun jul-package-menu-mark-install (&optional _num)
+  "Mark a package for installation and move to the next line."
+  (interactive "p")
+  (if (string= (jul-package-menu-get-repo) "installed")
+			(forward-line)
+		(tabulated-list-put-tag "I" t)))
+
+(defun jul-package-menu-get-repo ()
+  (let* ((id (tabulated-list-get-id))
+				 (entry (and id (assq id tabulated-list-entries))))
+    (if entry
+				(aref (cadr entry) 5)
+      "")))
+
+(define-derived-mode jul-package-menu-mode tabulated-list-mode "Jul Package Menu"
 	"Major mode for browsing a list of packages"
 	(setq tabulated-list-format
-        `[("Package" 18 nil) ;there will eventually be something (not just nil)
-          ("Version" 13 nil)
+        `[("Package" 25 nil) ;there will eventually be something (not just nil)
+          ("Version" 20 nil)
 					("Arch" 10 nil)
+					("Build" 10 nil)
           ("Status"  10 nil)
 					("Repo" 10 nil)])
 	(setq tabulated-list-padding 2)
@@ -252,12 +319,14 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
 				(version (jul-package-desc-version pkg-desc))
 				(arch (jul-package-desc-arch pkg-desc))
 				(repo (jul-package-desc-repo pkg-desc))
+				(build (jul-package-desc-build pkg-desc))
 				(status nil))
 		(cond ((equal repo "installed")
 					 (setf status " "))						;who knows once it's installed!
 					(t
 					 (setf status "stable")))
-		`(,pkg-desc ,`[,(list (symbol-name name)) ,version ,arch ,status ,repo])))
+		`(,pkg-desc
+			,`[,(list (symbol-name name)) ,version ,arch ,build ,status ,repo])))
 
 (defun jul-package-menu--refresh (&optional packages)
 	"Refresh the displayed menu"
@@ -293,12 +362,12 @@ or a list of package names (symbols) to display."
 
 (defun jul-list-package (&optional packages)
  	"A mode used to browser, install, and remove Dragora binaries from the user
-repo."
+repo and system."
 	(interactive)
 	(let* ((buf (get-buffer-create "*jul-package-list*"))
 				 (win (get-buffer-window buf)))
 		(with-current-buffer buf
-      (jul-menu-mode)
+      (jul-package-menu-mode)
 			(jul-package-refresh-contents)
       (jul-package-menu--generate nil packages))
 		(if win
