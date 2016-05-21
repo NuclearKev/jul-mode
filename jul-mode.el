@@ -24,7 +24,8 @@
 
 ;;; Changelog:
 
-;; 20 May 2016 - Started adding keys for doing tasks.
+;; 20 May 2016 - Started adding keys for doing tasks. Got installed stuff
+;;               working.
 ;; 19 May 2016 - Got pulling of all repos and listing them on screen working.
 ;; 17 May 2016 - Got commication with server.
 ;; 16 May 2016 - Created package. On this day, I got something working.
@@ -38,8 +39,7 @@
 
 ;;; Todo:
 
-;; * Get probing of a directory working
-;; * Get installation, upgrading, and removal working.
+;; * Get installation, removal, and updating working
 
 ;;; Code:
 
@@ -123,10 +123,15 @@ server.  Each element is of the form (NAME . J-PKG-DESC) where NAME is the name
 of the package and J-PKG-DESC is a cl-struct-jul-package-desc.")
 (put '*jul-package-repo* 'risky-local-variable t)
 
-(defvar *jul-package-dir* "~/.emacs.d/elpa/jul-mode/"
+(defvar *jul-package-temp-dir* "~/.emacs.d/elpa/jul-mode/"
 	"This variable contains the directory in which jul-mode stuff is done
 temporarily.")
-(put '*jul-package-dir* 'risky-local-variable t)
+(put '*jul-package-temp-dir* 'risky-local-variable t)
+
+(defvar *jul-package-installed-dir* "~/Desktop/Developing/jul-mode/installed/"
+	"This variable contains the directory in which Dragora keeps installed
+packages")
+(put '*jul-package-installed-dir* 'risky-local-variable t)
 
 (defvar *jul-database* "http://gungre.ch/jul/"
 	"Contains the directory that holds the .db files for jul")
@@ -279,12 +284,12 @@ buffer is killed afterwards.  Return the last value in BODY."
   "Retrieve an repo FILE from REPO, and cache it.
 REPO should be a cons cell of the form (NAME . LOCATION),
 similar to an entry in `*jul-package-repo*'.  Save the cached copy to
-`*jul-package-dir*' under the 'repos/' directory.
+`*jul-package-temp-dir*' under the 'repos/' directory.
 SERVER-FILE is the name of the file on the server.  Since sometimes this must be
 empty, we need two seperate args; one for server name and the other for the
 local name."
   (let ((dir (expand-file-name (format "repos/%s" (car repo))
-															 *jul-package-dir*)))
+															 *jul-package-temp-dir*)))
     (jul-package--with-work-buffer (cdr repo) file
       ;; Read the retrieved buffer to make sure it is valid (e.g. it
       ;; may fetch a URL redirect page).
@@ -296,21 +301,39 @@ local name."
 (defun jul-package-refresh-contents ()
 	"Updates the temp files with the newest HTML snapshot of the server. This HTML
 data will then be parsed to get use the current directories in each repo."
-	(unless (file-directory-p *jul-package-dir*)
-		(make-directory *jul-package-dir*))
-	(setf *jul-package-repo* nil)					;clear current uninstalled items
+	(unless (file-directory-p *jul-package-temp-dir*)
+		(make-directory *jul-package-temp-dir*))
+	(setf *jul-package-repo* nil)					;clear current uninstalled items list
+	(setf *jul-package-installed* nil) ;clear current installed items list
 	(dolist (elt jul-package-repos)
 		(let* ((name (car elt))
 					 (location (cdr elt))
 					 (database (cons name *jul-database*))
 					 (db-file-name (concat name ".db"))
 					 (db-location
-						(concat *jul-package-dir* "repos/" name "/"  db-file-name)))
+						(concat *jul-package-temp-dir* "repos/" name "/"  db-file-name)))
 			(jul-package--download-one-repo database db-file-name)
 			(setf *jul-package-repo* (append
 																(jul-parse-n-place db-location name)
-																*jul-package-repo*)))))
-
+																*jul-package-repo*))))
+	(let* ((installed-pack-dir-contents (directory-files
+																			*jul-package-installed-dir*))
+				 (installed-pack-list (remove "."
+																			(remove ".."
+																							installed-pack-dir-contents))))
+		(dolist (elt installed-pack-list)
+			(let* ((split-pack (jul-hyphenated-name-fixer (split-string elt "-")))
+						 (cur-pack-struct (jul-package-desc-from-define
+															 (car split-pack)
+															 (cadr split-pack)
+															 (caddr split-pack)
+															 "installed"
+															 (car (split-string
+																		 (cadddr split-pack) ".tlz"))))
+						 (cur-pack-list (cons (jul-package-desc-name cur-pack-struct)
+																	cur-pack-struct)))
+				(setf *jul-package-installed* (cons cur-pack-list
+																						*jul-package-installed*))))))
 
 (defun jul-package-menu--print-info (pkg-desc)
 	"Convert the complicated jul-package-desc-struct, to something the tabulated
@@ -334,11 +357,11 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
   (let ((info-list nil)
 				(name nil))
     ;; Installed packages:
-    ;; (dolist (elt *jul-package-installed*) ;needs to be updated before this
-    ;;   (setq name (car elt))
-    ;;   (when packages
-		;; 		(setq info-list
-		;; 					(cons (jul-package--push (cdr elt) info-list) info-list))))
+    (dolist (elt *jul-package-installed*) ;needs to be updated before this
+      (setq name (car elt))
+      (when packages
+				(setq info-list
+							(cons (jul-package--push (cdr elt) info-list) info-list))))
 
     ;; Uninstalled Packages:
     (dolist (elt *jul-package-repo*) ;needs to be updated before this
