@@ -1,4 +1,3 @@
-
 ;;; jul-mode.el --- Simple package system for Dragora -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2016 Kevin Bloom <kdb4@openmailbox.org>
@@ -170,11 +169,70 @@ packages")
 				;; (define-key menu-map [mupgrades]
     ;;   '(menu-item "Mark Upgradable Packages" jul-package-menu-mark-upgrades
 		;; 							:help "Mark packages that need upgraded"))
-		;; (define-key menu-map [mx]
-    ;;   '(menu-item "Execute Actions" jul-package-menu-execute
-		;; 							:help "Perform all the marked actions"))
+		(define-key menu-map [mx]
+      '(menu-item "Execute Actions" jul-package-menu-execute
+									:help "Perform all the marked actions"))
     map)
   "Local keymap for `jul-package-menu-mode' buffers.")
+
+(defun jul-package-desc-full-name (pkg-desc)
+  (format "%s-%s"
+          (jul-package-desc-name pkg-desc)
+          (jul-package-desc-version pkg-desc)))
+
+(defun jul-package-menu-execute (&optional noquery)
+  "Perform marked Package Menu actions.
+Packages marked for installation are downloaded and installed;
+packages marked for deletion are removed.
+Optional argument NOQUERY non-nil means do not ask the user to confirm."
+  (interactive)
+  (unless (derived-mode-p 'jul-package-menu-mode)
+    (error "The current buffer is not in Package Menu mode"))
+  (let (install-list delete-list cmd pkg-desc)
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+				(setq cmd (char-after))
+				(unless (eq cmd ?\s)
+					;; This is the key PKG-DESC.
+					(setq pkg-desc (tabulated-list-get-id))
+					(cond ((eq cmd ?D)
+								 (push pkg-desc delete-list))
+								((eq cmd ?I)
+								 (push pkg-desc install-list))))
+				(forward-line)))
+    (when install-list
+      (if (or
+           noquery
+           (yes-or-no-p
+            (if (= (length install-list) 1)
+                (format "Install package `%s'? "
+                        (jul-package-desc-full-name (car install-list)))
+              (format "Install these %d packages (%s)? "
+                      (length install-list)
+                      (mapconcat #'jul-package-desc-full-name
+                                 install-list ", ")))))
+					(mapc 'package-install install-list))) ;*****
+    ;; Delete packages, prompting if necessary.
+    (when delete-list
+      (if (or
+           noquery
+           (yes-or-no-p
+						(if (= (length delete-list) 1)
+								(format "Delete package `%s'? "
+												(jul-package-desc-full-name (car delete-list)))
+							(format "Delete these %d packages (%s)? "
+											(length delete-list)
+											(mapconcat #'jul-package-desc-full-name
+																 delete-list ", ")))))
+					(dolist (elt delete-list)
+						(condition-case-unless-debug err
+								(package-delete elt)		;*******
+							(error (message (cadr err)))))
+				(error "Aborted")))
+    (if (or delete-list install-list)
+				(jul-package-menu--generate t t)
+      (message "No operations specified."))))
 
 (defun jul-package-menu-mark-delete (&optional _num)
 	"Mark current package for deletion/removal and move to the next line."
@@ -307,7 +365,6 @@ data will then be parsed to get use the current directories in each repo."
 	(setf *jul-package-installed* nil) ;clear current installed items list
 	(dolist (elt jul-package-repos)
 		(let* ((name (car elt))
-					 (location (cdr elt))
 					 (database (cons name *jul-database*))
 					 (db-file-name (concat name ".db"))
 					 (db-location
@@ -396,6 +453,5 @@ repo and system."
 		(if win
 				(select-window win)
 			(switch-to-buffer buf))))
-
 
 ;;; jul-mode.el ends here
