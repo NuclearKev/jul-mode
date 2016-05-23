@@ -133,7 +133,7 @@ of the package and J-PKG-DESC is a cl-struct-jul-package-desc.")
 temporarily.")
 (put '*jul-package-temp-dir* 'risky-local-variable t)
 
-(defvar *jul-package-installed-dir* "~/Desktop/Developing/jul-mode/installed/"
+(defvar *jul-package-installed-dir* "/var/db/pkg/"
 	"This variable contains the directory in which Dragora keeps installed
 packages")
 (put '*jul-package-installed-dir* 'risky-local-variable t)
@@ -172,7 +172,7 @@ packages")
 		(define-key menu-map [md]
       '(menu-item "Mark for Removal" jul-package-menu-mark-delete
 									:help "Mark package for removal, move to the next line"))
-				;; (define-key menu-map [mupgrades]
+		;; (define-key menu-map [mupgrades]
     ;;   '(menu-item "Mark Upgradable Packages" jul-package-menu-mark-upgrades
 		;; 							:help "Mark packages that need upgraded"))
 		(define-key menu-map [mx]
@@ -204,7 +204,7 @@ manipulation tool 'pkg'."
 				(setf repo (cdr elt))))
 		(with-temp-file full-tlz (url-insert-file-contents
 															(concat repo pack-name "/" full-tlz)))
-		(async-shell-command (concat "pkg add " full-tlz)))) ;hasn't been tested
+		(async-shell-command (concat "sudo pkg add " full-tlz)))) ;hasn't been tested
 
 (defun jul-package-delete (pkg)
 	"PKG should be the tabulated list ID of the package.
@@ -215,7 +215,7 @@ package manipulation tool 'pkg'."
 													(jul-package-desc-arch pkg) "-"
 													(jul-package-desc-build pkg) ".tlz")))
 		(async-shell-command
-		 (concat "pkg remove " *jul-package-installed-dir* full-tlz))))
+		 (concat "sudo pkg remove " *jul-package-installed-dir* full-tlz))))
 
 (defun jul-package-menu-execute (&optional noquery)
   "Perform marked Package Menu actions.
@@ -309,7 +309,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 	(setq tabulated-list-padding 2)
 	;; There will be some sort of refreshing thing
 	(setq tabulated-list-sort-key (cons "Repo" nil))
-	(add-hook 'tabulated-list-revert-hook 'package-menu--refresh nil)
+	(add-hook 'tabulated-list-revert-hook 'jul-package-menu--refresh nil)
   (tabulated-list-init-header))
 
 (defun jul-package--push (pkg-desc listname)
@@ -324,8 +324,8 @@ to be printed to the screen."
 						 (sec-word (cadr split-pack))
 						 (new-word (concat fir-word "-" sec-word)))
 				(jul-hyphenated-name-fixer (cons new-word (remove sec-word
-																											(remove fir-word
-																															split-pack)))))
+																													(remove fir-word
+																																	split-pack)))))
 		split-pack))
 
 (defun jul-parse-n-place (file repo)
@@ -393,6 +393,18 @@ local name."
 				(make-directory dir t)
         (write-region nil nil (expand-file-name file dir) nil 'silent)))))
 
+;; Needs improved, maybe make a list of directories to remove?
+(defun jul-remove-unwanted-directories (list-of-files)
+	"LIST-OF-FILES should be the contents of installed directory. 
+This function will remove the directories we don't wish to show in jul-mode."
+	(remove "."
+					(remove ".."
+									(remove "description"
+													(remove "post-install"
+																	(remove "pre-post"
+																					(remove "removed"
+																									list-of-files)))))))
+
 (defun jul-package-refresh-contents ()
 	"Updates the temp files with the newest HTML snapshot of the server. This HTML
 data will then be parsed to get use the current directories in each repo."
@@ -411,10 +423,9 @@ data will then be parsed to get use the current directories in each repo."
 																(jul-parse-n-place db-location name)
 																*jul-package-repo*))))
 	(let* ((installed-pack-dir-contents (directory-files
-																			*jul-package-installed-dir*))
-				 (installed-pack-list (remove "."
-																			(remove ".."
-																							installed-pack-dir-contents))))
+																			 *jul-package-installed-dir*))
+				 (installed-pack-list
+					(jul-remove-unwanted-directories installed-pack-dir-contents)))
 		(dolist (elt installed-pack-list)
 			(let* ((split-pack (jul-hyphenated-name-fixer (split-string elt "-")))
 						 (cur-pack-struct (jul-package-desc-from-define
@@ -422,11 +433,10 @@ data will then be parsed to get use the current directories in each repo."
 															 (cadr split-pack)
 															 (car (cddr split-pack))
 															 "installed"
-															 (car (split-string
-																		 (cadr (cddr split-pack)) ".tlz"))))
+															 (cadr (cddr split-pack))))
 						 (cur-pack-list (cons (jul-package-desc-name cur-pack-struct)
 																	cur-pack-struct)))
-			(setf *jul-package-installed* (cons cur-pack-list
+				(setf *jul-package-installed* (cons cur-pack-list
 																						*jul-package-installed*))))))
 
 (defun jul-package-menu--print-info (pkg-desc)
