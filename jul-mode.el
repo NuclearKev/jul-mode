@@ -343,10 +343,10 @@ to be printed to the screen."
 								 (struct-pack (jul-package-desc-from-define
 															 (car split-pack)
 															 (cadr split-pack)
-															 (caddr split-pack)
+															 (car (cddr split-pack))
 															 repo
 															 (car (split-string
-																		 (cadddr split-pack) ".tlz")))))
+																		 (cadr (cddr split-pack)) ".tlz")))))
 						(setf pack-list (cons (cons
 																	 (jul-package-desc-name struct-pack)
 																	 struct-pack)
@@ -420,13 +420,13 @@ data will then be parsed to get use the current directories in each repo."
 						 (cur-pack-struct (jul-package-desc-from-define
 															 (car split-pack)
 															 (cadr split-pack)
-															 (caddr split-pack)
+															 (car (cddr split-pack))
 															 "installed"
 															 (car (split-string
-																		 (cadddr split-pack) ".tlz"))))
+																		 (cadr (cddr split-pack)) ".tlz"))))
 						 (cur-pack-list (cons (jul-package-desc-name cur-pack-struct)
 																	cur-pack-struct)))
-				(setf *jul-package-installed* (cons cur-pack-list
+			(setf *jul-package-installed* (cons cur-pack-list
 																						*jul-package-installed*))))))
 
 (defun jul-package-menu--print-info (pkg-desc)
