@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 23 May 2016 - Wrote the installation and removal functions. They need tested.
 ;; 20 May 2016 - Started adding keys for doing tasks. Got installed stuff
 ;;               working.
 ;; 19 May 2016 - Got pulling of all repos and listing them on screen working.
@@ -36,9 +37,14 @@
 ;; easier to use and more powerful.  That being said, you will (hopefully) be
 ;; able to do most of your package management in jul-mode as well.
 
+;; It's important to note that all of the code is based on (or from) the source
+;; for the built-in Emacs package `package.el'.  Without that source, it would
+;; have taken ages to write this.
+
 ;;; Todo:
 
-;; * Get installation, removal, and updating working
+;; * Test installation and removal of packages.
+;; * Get updating working
 
 ;;; Code:
 
@@ -176,6 +182,8 @@ packages")
   "Local keymap for `jul-package-menu-mode' buffers.")
 
 (defun jul-package-desc-full-name (pkg-desc)
+	"PKG-DESC should get the tabulated list ID.
+This function just concats the package name with the version"
   (format "%s-%s"
           (jul-package-desc-name pkg-desc)
           (jul-package-desc-version pkg-desc)))
@@ -195,8 +203,19 @@ manipulation tool 'pkg'."
 			(when (string= (jul-package-desc-repo pkg) (car elt))
 				(setf repo (cdr elt))))
 		(with-temp-file full-tlz (url-insert-file-contents
-															(concat repo pack-name "/" full-tlz)))))
+															(concat repo pack-name "/" full-tlz)))
+		(async-shell-command (concat "pkg -i " full-tlz)))) ;hasn't been tested
 
+(defun jul-package-delete (pkg)
+	"PKG should be the tabulated list ID of the package.
+This function will uninstall and remove installed packages using the Dragora
+package manipulation tool 'pkg'."
+	(let ((full-tlz (concat (format "%s" (jul-package-desc-name pkg)) "-"
+													(jul-package-desc-version pkg) "-"
+													(jul-package-desc-arch pkg) "-"
+													(jul-package-desc-build pkg) ".tlz")))
+		(async-shell-command
+		 (concat "pkg -r " *jul-package-installed-dir* full-tlz))))
 
 (defun jul-package-menu-execute (&optional noquery)
   "Perform marked Package Menu actions.
@@ -419,7 +438,7 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
 				(repo (jul-package-desc-repo pkg-desc))
 				(build (jul-package-desc-build pkg-desc))
 				(status nil))
-		(cond ((equal repo "installed")
+		(cond ((string= repo "installed")
 					 (setf status " "))						;who knows once it's installed!
 					(t
 					 (setf status "stable")))
