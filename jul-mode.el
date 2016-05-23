@@ -180,6 +180,24 @@ packages")
           (jul-package-desc-name pkg-desc)
           (jul-package-desc-version pkg-desc)))
 
+(defun jul-package-install (pkg)
+	"PKG should be the full package ID from the tabulated list.
+This function will download and install PKG using the Dragora's package
+manipulation tool 'pkg'."
+	(let* ((pack-name (format "%s" (jul-package-desc-name pkg)))
+				 (full-tlz (concat pack-name "-"
+													 (jul-package-desc-version pkg) "-"
+													 (jul-package-desc-arch pkg) "-"
+													 (jul-package-desc-build pkg)
+													 ".tlz"))
+				 (repo))
+		(dolist (elt jul-package-repos)
+			(when (string= (jul-package-desc-repo pkg) (car elt))
+				(setf repo (cdr elt))))
+		(with-temp-file full-tlz (url-insert-file-contents
+															(concat repo pack-name "/" full-tlz)))))
+
+
 (defun jul-package-menu-execute (&optional noquery)
   "Perform marked Package Menu actions.
 Packages marked for installation are downloaded and installed;
@@ -212,7 +230,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
                       (length install-list)
                       (mapconcat #'jul-package-desc-full-name
                                  install-list ", ")))))
-					(mapc 'package-install install-list))) ;*****
+					(mapc 'jul-package-install install-list))) ;*****
     ;; Delete packages, prompting if necessary.
     (when delete-list
       (if (or
@@ -227,7 +245,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 																 delete-list ", ")))))
 					(dolist (elt delete-list)
 						(condition-case-unless-debug err
-								(package-delete elt)		;*******
+								(jul-package-delete elt)		;*******
 							(error (message (cadr err)))))
 				(error "Aborted")))
     (if (or delete-list install-list)
