@@ -204,7 +204,7 @@ manipulation tool 'pkg'."
 				(setf repo (cdr elt))))
 		(with-temp-file full-tlz (url-insert-file-contents
 															(concat repo pack-name "/" full-tlz)))
-		(async-shell-command (concat "pkg -i " full-tlz)))) ;hasn't been tested
+		(async-shell-command (concat "pkg add " full-tlz)))) ;hasn't been tested
 
 (defun jul-package-delete (pkg)
 	"PKG should be the tabulated list ID of the package.
@@ -215,7 +215,7 @@ package manipulation tool 'pkg'."
 													(jul-package-desc-arch pkg) "-"
 													(jul-package-desc-build pkg) ".tlz")))
 		(async-shell-command
-		 (concat "pkg -r " *jul-package-installed-dir* full-tlz))))
+		 (concat "pkg remove " *jul-package-installed-dir* full-tlz))))
 
 (defun jul-package-menu-execute (&optional noquery)
   "Perform marked Package Menu actions.
