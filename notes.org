@@ -247,6 +247,12 @@ or a list of package names (symbols) to display."
   (tabulated-list-print remember-pos))
 	 #+End_SRC
 
+** Upgrading
+	 In order to upgrade, you must first have the program installed. Thus, I need
+	 to first check to see if there is a version of the program installed. It
+	 musted be check for every program (this could take some time). Then we must
+	 see if the version you have installed is older or not. If so, set the upgrade
+	 flag. Then 'pkg upgrade foo.tlz' will be ran in the upgrading function.
 
 * Remember this stuff
 
