@@ -23,7 +23,7 @@
 
 ;;; Changelog:
 
-;; 23 May 2016 - Wrote the installation and removal functions. They need tested.
+;; 23 May 2016 - Wrote the installation and removal functions. They work!
 ;; 20 May 2016 - Started adding keys for doing tasks. Got installed stuff
 ;;               working.
 ;; 19 May 2016 - Got pulling of all repos and listing them on screen working.
@@ -172,14 +172,23 @@ packages")
 		(define-key menu-map [md]
       '(menu-item "Mark for Removal" jul-package-menu-mark-delete
 									:help "Mark package for removal, move to the next line"))
-		;; (define-key menu-map [mupgrades]
-    ;;   '(menu-item "Mark Upgradable Packages" jul-package-menu-mark-upgrades
-		;; 							:help "Mark packages that need upgraded"))
+		(define-key menu-map [mupgrades]
+      '(menu-item "Mark Upgradable Packages" jul-package-menu-mark-upgrades
+									:help "Mark packages that need upgraded"))
 		(define-key menu-map [mx]
       '(menu-item "Execute Actions" jul-package-menu-execute
 									:help "Perform all the marked actions"))
     map)
   "Local keymap for `jul-package-menu-mode' buffers.")
+
+;; Function in the works!
+(defun jul-package-menu-mark-upgrades (&optional noquery)
+	"This function will select all the packages to be upgraded.  Note that when
+upgrading the `pkg' program (Dragora's package manipulation program) will
+automatically update the installed list.  Therefore, you do not need to select
+an installed package for removal."
+	(let ((packs-to-upgrade (jul-find-updates)))
+		))
 
 (defun jul-package-desc-full-name (pkg-desc)
 	"PKG-DESC should get the tabulated list ID.
@@ -204,7 +213,7 @@ manipulation tool 'pkg'."
 				(setf repo (cdr elt))))
 		(with-temp-file full-tlz (url-insert-file-contents
 															(concat repo pack-name "/" full-tlz)))
-		(async-shell-command (concat "sudo pkg add " full-tlz)))) ;hasn't been tested
+		(async-shell-command (concat "sudo pkg add " full-tlz))))
 
 (defun jul-package-delete (pkg)
 	"PKG should be the tabulated list ID of the package.
@@ -249,7 +258,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
                       (length install-list)
                       (mapconcat #'jul-package-desc-full-name
                                  install-list ", ")))))
-					(mapc 'jul-package-install install-list))) ;*****
+					(mapc 'jul-package-install install-list)))
     ;; Delete packages, prompting if necessary.
     (when delete-list
       (if (or
@@ -264,7 +273,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 																 delete-list ", ")))))
 					(dolist (elt delete-list)
 						(condition-case-unless-debug err
-								(jul-package-delete elt)		;*******
+								(jul-package-delete elt)
 							(error (message (cadr err)))))
 				(error "Aborted")))
     (if (or delete-list install-list)
@@ -319,6 +328,12 @@ to be printed to the screen."
 		pkg-desc))
 
 (defun jul-hyphenated-name-fixer (split-pack)
+	"SPLIT-PACK should be the full name of a package after being split by the
+split-string function with '-'.
+
+This function will make sure that it doesn't use a part of the name of the
+package as the version, build, or arch.  It does this by checking the size of
+SPLIT-PACK."
 	(if (> (length split-pack) 4)
 			(let* ((fir-word (car split-pack))
 						 (sec-word (cadr split-pack))
@@ -395,7 +410,7 @@ local name."
 
 ;; Needs improved, maybe make a list of directories to remove?
 (defun jul-remove-unwanted-directories (list-of-files)
-	"LIST-OF-FILES should be the contents of installed directory. 
+	"LIST-OF-FILES should be the contents of installed directory.
 This function will remove the directories we don't wish to show in jul-mode."
 	(remove "."
 					(remove ".."
@@ -406,8 +421,11 @@ This function will remove the directories we don't wish to show in jul-mode."
 																									list-of-files)))))))
 
 (defun jul-package-refresh-contents ()
-	"Updates the temp files with the newest HTML snapshot of the server. This HTML
-data will then be parsed to get use the current directories in each repo."
+	"This function will grab the current version of the database files on the user
+repo and add all the packages to a big list.
+
+It also probes the installed directory on your system and makes a list of all
+the installed programs."
 	(unless (file-directory-p *jul-package-temp-dir*)
 		(make-directory *jul-package-temp-dir*))
 	(setf *jul-package-repo* nil)					;clear current uninstalled items list
