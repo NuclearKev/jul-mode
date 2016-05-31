@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 31 May 2016 - Wrote the upgrading functions. They work, however, bugs!
 ;; 23 May 2016 - Wrote the installation and removal functions. They work!
 ;; 20 May 2016 - Started adding keys for doing tasks. Got installed stuff
 ;;               working.
@@ -218,7 +219,6 @@ packages")
 							(push avail-pkg upgrades))))))
     upgrades))
 
-;; Function in the works!
 (defun jul-package-menu-mark-upgrades ()
 	"This function will select all the packages to be upgraded.  Note that when
 upgrading the `pkg' program (Dragora's package manipulation program) will
@@ -269,35 +269,42 @@ manipulation tool 'pkg'."
 		(async-shell-command (concat "sudo pkg upgrade " full-tlz-path))))
 
 
-(defun jul-package-install (pkg)
-	"PKG should be the full package ID from the tabulated list.
+(defun jul-package-install (pkg-list)
+	"PKG-LIST should be the full package ID from the tabulated list.
 This function will download and install PKG using the Dragora's package
 manipulation tool 'pkg'."
-	(let* ((pack-name (format "%s" (jul-package-desc-name pkg)))
-				 (full-tlz (concat pack-name "-"
-													 (jul-package-desc-version pkg) "-"
-													 (jul-package-desc-arch pkg) "-"
-													 (jul-package-desc-build pkg)
-													 ".tlz"))
-				 (full-tlz-path (concat *jul-package-temp-dir* full-tlz))
-				 (repo))
-		(dolist (elt jul-package-repos)
-			(when (string= (jul-package-desc-repo pkg) (car elt))
-				(setf repo (cdr elt))))
-		(with-temp-file full-tlz-path
-			(url-insert-file-contents	(concat repo pack-name "/" full-tlz)))
-		(async-shell-command (concat "sudo pkg add " full-tlz-path))))
+	(let (string-of-pkg)
+		(dolist (pkg pkg-list)
+			(let* ((pack-name (format "%s" (jul-package-desc-name pkg)))
+						 (full-tlz (concat pack-name "-"
+															 (jul-package-desc-version pkg) "-"
+															 (jul-package-desc-arch pkg) "-"
+															 (jul-package-desc-build pkg)
+															 ".tlz"))
+						 (full-tlz-path (concat *jul-package-temp-dir* full-tlz))
+						 (repo))
+				(dolist (elt jul-package-repos)
+					(when (string= (jul-package-desc-repo pkg) (car elt))
+						(setf repo (cdr elt))))
+				(with-temp-file full-tlz-path
+					(url-insert-file-contents	(concat repo pack-name "/" full-tlz)))
+				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
+		(async-shell-command (concat "sudo pkg add " string-of-pkg))))
 
-(defun jul-package-delete (pkg)
-	"PKG should be the tabulated list ID of the package.
+(defun jul-package-delete (pkg-list)
+	"PKG-LIST should be the tabulated list ID of the package.
 This function will uninstall and remove installed packages using the Dragora
 package manipulation tool 'pkg'."
-	(let ((full-tlz (concat (format "%s" (jul-package-desc-name pkg)) "-"
-													(jul-package-desc-version pkg) "-"
-													(jul-package-desc-arch pkg) "-"
-													(jul-package-desc-build pkg) ".tlz")))
+	(let (string-of-pkg)
+		(dolist (pkg pkg-list)
+			(let* ((full-tlz (concat (format "%s" (jul-package-desc-name pkg)) "-"
+															 (jul-package-desc-version pkg) "-"
+															 (jul-package-desc-arch pkg) "-"
+															 (jul-package-desc-build pkg) ".tlz"))
+						 (full-tlz-path (concat *jul-package-installed-dir* full-tlz)))
+				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
 		(async-shell-command
-		 (concat "sudo pkg remove " *jul-package-installed-dir* full-tlz))))
+		 (concat "sudo pkg remove " string-of-pkg))))
 
 (defun jul-package-menu-execute (&optional noquery)
   "Perform marked Package Menu actions.
@@ -333,7 +340,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
                       (length install-list)
                       (mapconcat #'jul-package-desc-full-name
                                  install-list ", ")))))
-					(mapc 'jul-package-install install-list)))
+					(jul-package-install install-list)))
     ;; Delete packages, prompting if necessary.
     (when delete-list
       (if (or
@@ -346,11 +353,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 											(length delete-list)
 											(mapconcat #'jul-package-desc-full-name
 																 delete-list ", ")))))
-					(dolist (elt delete-list)
-						(condition-case-unless-debug err
-								(jul-package-delete elt)
-							(error (message (cadr err)))))
-				(error "Aborted")))
+					(jul-package-delete delete-list)))
     (when upgrade-list
       (if (or
            noquery
