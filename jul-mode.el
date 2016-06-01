@@ -183,6 +183,13 @@ packages")
   "Local keymap for `jul-package-menu-mode' buffers.")
 
 (defun jul-package-menu--find-upgrades ()
+	"This function looks though all the current tabulated entries and finds the
+ones that are in need of upgrading.
+
+First it seperates them into two list, installed and available, then it removes
+the stuff that isn't the same architecture as the stuff you have installed.
+Then it compares versions and will place the ones with the newer version into
+the upgrades list."
   (let (installed available upgrades)
     ;; Build list of installed/available packages in this buffer.
     (dolist (entry tabulated-list-entries)
@@ -249,30 +256,34 @@ This function just concats the package name with the version"
           (jul-package-desc-name pkg-desc)
           (jul-package-desc-version pkg-desc)))
 
-(defun jul-package-upgrade (pkg)
-	"PKG should be the full package ID from the tabulated list.
+(defun jul-package-upgrade (pkg-list)
+	"PKG-LIST should a list of all the packages to be upgraded of the form
+tabulated-list-id.
 This function will download and install PKG using the Dragora's package
 manipulation tool 'pkg'."
-	(let* ((pack-name (format "%s" (jul-package-desc-name pkg)))
-				 (full-tlz (concat pack-name "-"
-													 (jul-package-desc-version pkg) "-"
-													 (jul-package-desc-arch pkg) "-"
-													 (jul-package-desc-build pkg)
-													 ".tlz"))
-				 (full-tlz-path (concat *jul-package-temp-dir* full-tlz))
-				 (repo))
-		(dolist (elt jul-package-repos)
-			(when (string= (jul-package-desc-repo pkg) (car elt))
-				(setf repo (cdr elt))))
-		(with-temp-file full-tlz-path
-			(url-insert-file-contents (concat repo pack-name "/" full-tlz)))
-		(async-shell-command (concat "sudo pkg upgrade " full-tlz-path))))
+	(let (string-of-pkg)
+		(dolist (pkg pkg-list)
+			(let* ((pack-name (format "%s" (jul-package-desc-name pkg)))
+						 (full-tlz (concat pack-name "-"
+															 (jul-package-desc-version pkg) "-"
+															 (jul-package-desc-arch pkg) "-"
+															 (jul-package-desc-build pkg)
+															 ".tlz"))
+						 (full-tlz-path (concat *jul-package-temp-dir* full-tlz))
+						 (repo))
+				(dolist (elt jul-package-repos)
+					(when (string= (jul-package-desc-repo pkg) (car elt))
+						(setf repo (cdr elt))))
+				(with-temp-file full-tlz-path
+					(url-insert-file-contents (concat repo pack-name "/" full-tlz)))
+				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
+		(async-shell-command (concat "sudo pkg upgrade " string-of-pkg))))
 
 
 (defun jul-package-install (pkg-list)
-	"PKG-LIST should be the full package ID from the tabulated list.
-This function will download and install PKG using the Dragora's package
-manipulation tool 'pkg'."
+	"PKG-LIST should a list of all the packages to be upgraded of the
+form tabulated-list-id.  This function will download and install PKG
+using the Dragora's package manipulation tool 'pkg'."
 	(let (string-of-pkg)
 		(dolist (pkg pkg-list)
 			(let* ((pack-name (format "%s" (jul-package-desc-name pkg)))
@@ -292,9 +303,9 @@ manipulation tool 'pkg'."
 		(async-shell-command (concat "sudo pkg add " string-of-pkg))))
 
 (defun jul-package-delete (pkg-list)
-	"PKG-LIST should be the tabulated list ID of the package.
-This function will uninstall and remove installed packages using the Dragora
-package manipulation tool 'pkg'."
+	"PKG-LIST should a list of all the packages to be upgraded of the
+form tabulated-list-id.  This function will uninstall and remove
+installed packages using the Dragora package manipulation tool 'pkg'."
 	(let (string-of-pkg)
 		(dolist (pkg pkg-list)
 			(let* ((full-tlz (concat (format "%s" (jul-package-desc-name pkg)) "-"
@@ -365,7 +376,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
                       (length upgrade-list)
                       (mapconcat #'jul-package-desc-full-name
                                  upgrade-list ", ")))))
-					(mapc 'jul-package-upgrade upgrade-list)))
+					(jul-package-upgrade upgrade-list)))
     (if (or delete-list install-list upgrade-list)
 				(jul-package-menu--generate t t)
       (message "No operations specified."))))
