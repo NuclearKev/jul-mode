@@ -205,8 +205,12 @@ the upgrades list."
 		;; Remove packages that aren't the same arch
 		(let ((arch (jul-package-desc-arch (car (last installed)))))
 			(dolist (elt available)							;remove other arch
-				(unless (string= arch (jul-package-desc-arch (cdr elt)))
-					(setf available (remove elt available)))))
+				(let ((pack-arch (jul-package-desc-arch (cdr elt))))
+					(unless (or
+									 (string= arch pack-arch)
+									 (string= "noarch" pack-arch)
+									 (string= "any" pack-arch))
+						(setf available (remove elt available))))))
 
 		;; Loop through list of installed packages, finding upgrades.
     (dolist (pkg-desc installed)
@@ -541,6 +545,7 @@ the installed programs."
 			(setf *jul-package-repo* (append
 																(jul-parse-n-place db-location name)
 																*jul-package-repo*))))
+
 	(let* ((installed-pack-dir-contents (directory-files
 																			 *jul-package-installed-dir*))
 				 (installed-pack-list
