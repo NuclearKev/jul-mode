@@ -4,7 +4,7 @@
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.2
+;; Version: 0.3
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 6 June 2016 - Rewritting jul-mode to work with newer version of jul.
 ;; 31 May 2016 - Wrote the upgrading functions. They work, however, bugs!
 ;; 23 May 2016 - Wrote the installation and removal functions. They work!
 ;; 20 May 2016 - Started adding keys for doing tasks. Got installed stuff
@@ -42,10 +43,13 @@
 ;; for the built-in Emacs package `package.el'.  Without that source, it would
 ;; have taken ages to write this.
 
+;; Version 0.3 and up use the jul program to installation/upgrading.
+;; So you must have version 0.4 or higher of jul installed for this to
+;; work.
+
 ;;; Todo:
 
-;; * Test installation and removal of packages.
-;; * Get updating working
+;; Get it to work with the newest version of jul
 
 ;;; Code:
 
@@ -56,7 +60,7 @@
 (defgroup jul-package nil
   "Manager for Dragora User packages."
   :group 'applications
-  :version "0.2")
+  :version "0.3")
 
 (defcustom jul-package-repos
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
@@ -79,7 +83,7 @@ a package can run arbitrary code."
                 :value-type (string :tag "URL or directory name"))
   :risky t
   :group 'jul-package
-  :version "0.2")
+  :version "0.3")
 
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
@@ -281,7 +285,7 @@ manipulation tool 'pkg'."
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents (concat repo pack-name "/" full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(async-shell-command (concat "sudo pkg upgrade " string-of-pkg))))
+		(async-shell-command (concat "sudo jul upgrade " string-of-pkg))))
 
 
 (defun jul-package-install (pkg-list)
@@ -304,7 +308,7 @@ using the Dragora's package manipulation tool 'pkg'."
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents	(concat repo pack-name "/" full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(async-shell-command (concat "sudo pkg add " string-of-pkg))))
+		(async-shell-command (concat "sudo jul add " string-of-pkg))))
 
 (defun jul-package-delete (pkg-list)
 	"PKG-LIST should a list of all the packages to be upgraded of the
@@ -448,7 +452,7 @@ SPLIT-PACK."
 																																	split-pack)))))
 		split-pack))
 
-(defun jul-parse-n-place (file repo)
+(defun jul-parse-n-place (file)
 	(with-temp-buffer
 		(insert-file-contents file)
 		(let ((num-of-packs (count-lines (point-min) (point-max)))
@@ -464,7 +468,7 @@ SPLIT-PACK."
 															 (car split-pack)
 															 (cadr split-pack)
 															 (car (cddr split-pack))
-															 repo
+															 "gungre"
 															 (car (split-string
 																		 (cadr (cddr split-pack)) ".tlz")))))
 						(setf pack-list (cons (cons
@@ -535,16 +539,11 @@ the installed programs."
 		(make-directory *jul-package-temp-dir*))
 	(setf *jul-package-repo* nil)					;clear current uninstalled items list
 	(setf *jul-package-installed* nil) ;clear current installed items list
-	(dolist (elt jul-package-repos)
-		(let* ((name (car elt))
-					 (database (cons name *jul-database*))
-					 (db-file-name (concat name ".db"))
-					 (db-location
-						(concat *jul-package-temp-dir* "repos/" name "/"  db-file-name)))
-			(jul-package--download-one-repo database db-file-name)
-			(setf *jul-package-repo* (append
-																(jul-parse-n-place db-location name)
-																*jul-package-repo*))))
+	(let ((temp-file (concat *jul-package-temp-dir* "temp")))
+		(shell-command "jul sync")
+		(shell-command (concat "jul list > " temp-file))
+		(message "Syncing jul...")
+		(setf *jul-package-repo* (jul-parse-n-place temp-file)))
 
 	(let* ((installed-pack-dir-contents (directory-files
 																			 *jul-package-installed-dir*))
@@ -561,7 +560,8 @@ the installed programs."
 						 (cur-pack-list (cons (jul-package-desc-name cur-pack-struct)
 																	cur-pack-struct)))
 				(setf *jul-package-installed* (cons cur-pack-list
-																						*jul-package-installed*))))))
+																						*jul-package-installed*)))))
+	(message "Sync complete"))
 
 (defun jul-package-menu--print-info (pkg-desc)
 	"Convert the complicated jul-package-desc-struct, to something the tabulated
