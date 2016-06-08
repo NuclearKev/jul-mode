@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 8 June 2016 - Works with newest version of jul
 ;; 6 June 2016 - Rewritting jul-mode to work with newer version of jul.
 ;; 31 May 2016 - Wrote the upgrading functions. They work, however, bugs!
 ;; 23 May 2016 - Wrote the installation and removal functions. They work!
@@ -43,9 +44,9 @@
 ;; for the built-in Emacs package `package.el'.  Without that source, it would
 ;; have taken ages to write this.
 
-;; Version 0.3 and up use the jul program to installation/upgrading.
+;; Version 0.3 and up use the jul program to list the uninstalled packages.
 ;; So you must have version 0.4 or higher of jul installed for this to
-;; work.
+;; work (I think).
 
 ;;; Todo:
 
@@ -94,12 +95,14 @@ a package can run arbitrary code."
                (:constructor
                 jul-package-desc-from-define
                 (name-string version-string arch-string repo-string build-string
+														 description-string
 														 &aux
 														 (name (intern name-string))
 														 (version version-string)
 														 (arch arch-string)
 														 (repo repo-string)
-														 (build build-string))))
+														 (build build-string)
+														 (description description-string))))
   "Structure containing information about an individual package.
 Slots:
 
@@ -112,12 +115,14 @@ Slots:
 `repo' The name of the archive (as a string) whence this came
 
 `build' The current build, as a string
-	package came."
+
+`description' A short description of the package, as a string"
   name
   version
 	arch
   repo
-	build)
+	build
+	description)
 
 ;; Although not common Emacs Lisp practice, I find it helpful to have earmuffs
 ;; on the "global" variables.
@@ -197,9 +202,9 @@ the upgrades list."
   (let (installed available upgrades)
     ;; Build list of installed/available packages in this buffer.
     (dolist (entry tabulated-list-entries)
-      ;; ENTRY is (PKG-DESC [NAME VERSION STATUS DOC])
+      ;; ENTRY is (PKG-DESC [NAME VERSION ARCH BUILD REPO])
       (let ((pkg-desc (car entry))
-						(repo (aref (cadr entry) 5)))
+						(repo (aref (cadr entry) 4)))
 				(cond ((string= repo "installed")
 							 (push pkg-desc installed))
 							(t											 ;assuming everything else isn't installed
@@ -285,7 +290,7 @@ manipulation tool 'pkg'."
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents (concat repo pack-name "/" full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(async-shell-command (concat "sudo jul upgrade " string-of-pkg))))
+		(async-shell-command (concat "sudo pkg upgrade " string-of-pkg))))
 
 
 (defun jul-package-install (pkg-list)
@@ -302,13 +307,17 @@ using the Dragora's package manipulation tool 'pkg'."
 															 ".tlz"))
 						 (full-tlz-path (concat *jul-package-temp-dir* full-tlz))
 						 (repo))
-				(dolist (elt jul-package-repos)
-					(when (string= (jul-package-desc-repo pkg) (car elt))
-						(setf repo (cdr elt))))
+				(shell-command (concat "jul search " pack-name " > temp" ))
+				(with-temp-buffer
+					(insert-file-contents "temp")
+					(dolist (elt jul-package-repos)
+						(goto-char (point-min))
+						(when (search-forward (car elt) nil t)
+							(setf repo (cdr elt)))))
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents	(concat repo pack-name "/" full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(async-shell-command (concat "sudo jul add " string-of-pkg))))
+		(async-shell-command (concat "sudo pkg add " string-of-pkg))))
 
 (defun jul-package-delete (pkg-list)
 	"PKG-LIST should a list of all the packages to be upgraded of the
@@ -412,7 +421,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
   (let* ((id (tabulated-list-get-id))
 				 (entry (and id (assq id tabulated-list-entries))))
     (if entry
-				(aref (cadr entry) 5)
+				(aref (cadr entry) 4)
       "")))
 
 (define-derived-mode jul-package-menu-mode tabulated-list-mode "Jul Package Menu"
@@ -422,8 +431,8 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
           ("Version" 20 nil)
 					("Arch" 10 nil)
 					("Build" 10 nil)
-          ("Status"  10 nil)
 					("Repo" 10 nil)])
+;					("Description" 50 nil)])
 	(setq tabulated-list-padding 2)
 	;; There will be some sort of refreshing thing
 	(setq tabulated-list-sort-key (cons "Repo" nil))
@@ -436,10 +445,27 @@ to be printed to the screen."
 	(unless (member pkg-desc listname)
 		pkg-desc))
 
+(defun jul-space-fixer (split-pack)
+	"SPLIT-PACK should be the full name of a package after being split by the
+split-string function with ' '.
+
+This function will return a list that contains 3 elements: the repo, the full
+package name, and the description (if there is one) of the form
+'(DESCRIPTION REPO PACKAGE)."
+	(let (pkg-list description)
+		(dolist (elt split-pack)
+			(unless (string= elt "")
+				(setf pkg-list (cons elt pkg-list))))
+		(setf pkg-list (reverse pkg-list)) 	;so that description is in right order
+		(while (> (length pkg-list) 2)
+			(let ((word (car (cddr pkg-list))))
+				(setf description (concat description word " "))
+				(setf pkg-list (remove word pkg-list))))
+		(push description pkg-list)))
+
 (defun jul-hyphenated-name-fixer (split-pack)
 	"SPLIT-PACK should be the full name of a package after being split by the
 split-string function with '-'.
-
 This function will make sure that it doesn't use a part of the name of the
 package as the version, build, or arch.  It does this by checking the size of
 SPLIT-PACK."
@@ -462,15 +488,18 @@ SPLIT-PACK."
 				(let ((first-point (point)))
 					(end-of-line)
 					(copy-region-as-kill first-point (point))
-					(let* ((split-pack (jul-hyphenated-name-fixer
-															(split-string (car kill-ring) "-")))
+					(let* ((raw-output (jul-space-fixer
+															(split-string (car kill-ring) " ")))
+								 (split-pack (jul-hyphenated-name-fixer
+															(split-string (car (cddr raw-output)) "-")))
 								 (struct-pack (jul-package-desc-from-define
 															 (car split-pack)
 															 (cadr split-pack)
 															 (car (cddr split-pack))
-															 "gungre"
+															 (cadr raw-output)
 															 (car (split-string
-																		 (cadr (cddr split-pack)) ".tlz")))))
+																		 (cadr (cddr split-pack)) ".tlz"))
+															 (car raw-output))))
 						(setf pack-list (cons (cons
 																	 (jul-package-desc-name struct-pack)
 																	 struct-pack)
@@ -541,7 +570,7 @@ the installed programs."
 	(setf *jul-package-installed* nil) ;clear current installed items list
 	(let ((temp-file (concat *jul-package-temp-dir* "temp")))
 		(shell-command "jul sync")
-		(shell-command (concat "jul list > " temp-file))
+		(shell-command (concat "jul search > " temp-file))
 		(message "Syncing jul...")
 		(setf *jul-package-repo* (jul-parse-n-place temp-file)))
 
@@ -556,7 +585,8 @@ the installed programs."
 															 (cadr split-pack)
 															 (car (cddr split-pack))
 															 "installed"
-															 (cadr (cddr split-pack))))
+															 (cadr (cddr split-pack))
+															 "No description for you"))
 						 (cur-pack-list (cons (jul-package-desc-name cur-pack-struct)
 																	cur-pack-struct)))
 				(setf *jul-package-installed* (cons cur-pack-list
@@ -570,14 +600,10 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
 				(version (jul-package-desc-version pkg-desc))
 				(arch (jul-package-desc-arch pkg-desc))
 				(repo (jul-package-desc-repo pkg-desc))
-				(build (jul-package-desc-build pkg-desc))
-				(status nil))
-		(cond ((string= repo "installed")
-					 (setf status " "))						;who knows once it's installed!
-					(t
-					 (setf status "stable")))
+				(build (jul-package-desc-build pkg-desc)))
+;				(description (jul-package-desc-description pkg-desc)))
 		`(,pkg-desc
-			,`[,(list (symbol-name name)) ,version ,arch ,build ,status ,repo])))
+			,`[,(list (symbol-name name)) ,version ,arch ,build ,repo])))
 
 (defun jul-package-menu--refresh (&optional packages)
 	"Refresh the displayed menu"
