@@ -172,7 +172,7 @@ packages")
 									:help "Next Line"))
     (define-key menu-map [mp]
       '(menu-item "Previous" previous-line
-									:help "Previous Line"))
+v									:help "Previous Line"))
 		(define-key menu-map [mi]
       '(menu-item "Mark for Install" jul-package-menu-mark-install
 									:help "Mark package for installation, move to the next line"))
@@ -431,8 +431,8 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
           ("Version" 20 nil)
 					("Arch" 10 nil)
 					("Build" 10 nil)
-					("Repo" 10 nil)])
-;					("Description" 50 nil)])
+					("Repo" 13 nil)
+					("Description" 0 nil)])
 	(setq tabulated-list-padding 2)
 	;; There will be some sort of refreshing thing
 	(setq tabulated-list-sort-key (cons "Repo" nil))
@@ -461,7 +461,9 @@ package name, and the description (if there is one) of the form
 			(let ((word (car (cddr pkg-list))))
 				(setf description (concat description word " "))
 				(setf pkg-list (remove word pkg-list))))
-		(push description pkg-list)))
+		(if description
+				(push description pkg-list)
+			(push " " pkg-list))))
 
 (defun jul-hyphenated-name-fixer (split-pack)
 	"SPLIT-PACK should be the full name of a package after being split by the
@@ -586,7 +588,7 @@ the installed programs."
 															 (car (cddr split-pack))
 															 "installed"
 															 (cadr (cddr split-pack))
-															 "No description for you"))
+															 " "))
 						 (cur-pack-list (cons (jul-package-desc-name cur-pack-struct)
 																	cur-pack-struct)))
 				(setf *jul-package-installed* (cons cur-pack-list
@@ -600,10 +602,10 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
 				(version (jul-package-desc-version pkg-desc))
 				(arch (jul-package-desc-arch pkg-desc))
 				(repo (jul-package-desc-repo pkg-desc))
-				(build (jul-package-desc-build pkg-desc)))
-;				(description (jul-package-desc-description pkg-desc)))
+				(build (jul-package-desc-build pkg-desc))
+				(description (jul-package-desc-description pkg-desc)))
 		`(,pkg-desc
-			,`[,(list (symbol-name name)) ,version ,arch ,build ,repo])))
+			,`[,(list (symbol-name name)) ,version ,arch ,build ,repo ,description])))
 
 (defun jul-package-menu--refresh (&optional packages)
 	"Refresh the displayed menu"
