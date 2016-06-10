@@ -24,7 +24,7 @@
 ;;; Changelog:
 
 ;; 8 June 2016 - Works with newest version of jul
-;; 6 June 2016 - Rewritting jul-mode to work with newer version of jul.
+;; 6 June 2016 - Rewritting jul-mode to work with newer version of jul. (0.3)
 ;; 31 May 2016 - Wrote the upgrading functions. They work, however, bugs!
 ;; 23 May 2016 - Wrote the installation and removal functions. They work!
 ;; 20 May 2016 - Started adding keys for doing tasks. Got installed stuff
@@ -55,6 +55,9 @@
 ;; Filtering
 ;; Don't allow the installation of a package that is all ready installed.
 ;; You must upgrade that one instead.
+;; Delete *.tlz and temp files after use
+;; Fix async issues with install/delete/upgrade at once
+;; Better version comparitor
 
 ;;; Code:
 
@@ -176,7 +179,7 @@ packages")
 									:help "Next Line"))
     (define-key menu-map [mp]
       '(menu-item "Previous" previous-line
-v									:help "Previous Line"))
+									:help "Previous Line"))
 		(define-key menu-map [mi]
       '(menu-item "Mark for Install" jul-package-menu-mark-install
 									:help "Mark package for installation, move to the next line"))
