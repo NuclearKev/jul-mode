@@ -44,13 +44,17 @@
 ;; for the built-in Emacs package `package.el'.  Without that source, it would
 ;; have taken ages to write this.
 
-;; Version 0.3 and up use the jul program to list the uninstalled packages.
+;; Version 0.3 and up uses the jul program to list the uninstalled packages.
 ;; So you must have version 0.4 or higher of jul installed for this to
 ;; work (I think).
 
 ;;; Todo:
 
-;; Get it to work with the newest version of jul
+;; Don't show available packages for the same version that is installed.
+;; Auto-refresh after you execute
+;; Filtering
+;; Don't allow the installation of a package that is all ready installed.
+;; You must upgrade that one instead.
 
 ;;; Code:
 
@@ -190,6 +194,16 @@ v									:help "Previous Line"))
 									:help "Perform all the marked actions"))
     map)
   "Local keymap for `jul-package-menu-mode' buffers.")
+
+(defun jul-package-menu-refresh ()
+  "Download the Emacs Lisp package archive.
+This fetches the contents of each archive specified in
+`package-archives', and then refreshes the package menu."
+  (interactive)
+  (unless (derived-mode-p 'jul-package-menu-mode)
+    (user-error "The current buffer is not a Package Menu"))
+  (jul-package-refresh-contents)
+  (jul-package-menu--generate t t))
 
 (defun jul-package-menu--find-upgrades ()
 	"This function looks though all the current tabulated entries and finds the
