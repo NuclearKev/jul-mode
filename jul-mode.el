@@ -4,7 +4,7 @@
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.3
+;; Version: 0.3.1
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 25 July 2016 - Added the 'tom' repo
 ;; 8 June 2016 - Works with newest version of jul
 ;; 6 June 2016 - Rewritting jul-mode to work with newer version of jul. (0.3)
 ;; 31 May 2016 - Wrote the upgrading functions. They work, however, bugs!
@@ -50,13 +51,20 @@
 
 ;;; Todo:
 
-;; Don't show available packages for the same version that is installed.
 ;; Auto-refresh after you execute
+
 ;; Filtering
+
 ;; Don't allow the installation of a package that is all ready installed.
 ;; You must upgrade that one instead.
+
+;; Don't allow the installation of packages that aren't the same arch as your
+;; system
+
 ;; Delete *.tlz and temp files after use
+
 ;; Fix async issues with install/delete/upgrade at once
+
 ;; Better version comparitor
 
 ;;; Code:
@@ -73,10 +81,10 @@
 (defcustom jul-package-repos
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
 		("kelsoo" . "http://gungre.ch/dragora/repo/kelsoo/")
-		("mprodrigues" . "http://gungre.ch/dragora/repo/mprodrigues/"))
+		("mprodrigues" . "http://gungre.ch/dragora/repo/mprodrigues/")
+		("tom" . "http://92.19.232.58:82/dragora/repo/tom/")) ;ugly URL...
   "An alist of archives from which to fetch.
 The defaults include all the repos found on the gungre.ch site.
-Note that frusen has 3 different ones.
 
 Each element has the form (ID . LOCATION).
 ID is an archive name, as a string.
@@ -324,13 +332,9 @@ using the Dragora's package manipulation tool 'pkg'."
 															 ".tlz"))
 						 (full-tlz-path (concat *jul-package-temp-dir* full-tlz))
 						 (repo))
-				(shell-command (concat "jul search " pack-name " > temp" ))
-				(with-temp-buffer
-					(insert-file-contents "temp")
-					(dolist (elt jul-package-repos)
-						(goto-char (point-min))
-						(when (search-forward (car elt) nil t)
-							(setf repo (cdr elt)))))
+				(dolist (elt jul-package-repos)
+					(when (string= (jul-package-desc-repo pkg) (car elt))
+						(setf repo (cdr elt))))
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents	(concat repo pack-name "/" full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
@@ -348,8 +352,7 @@ installed packages using the Dragora package manipulation tool 'pkg'."
 															 (jul-package-desc-build pkg) ".tlz"))
 						 (full-tlz-path (concat *jul-package-installed-dir* full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(async-shell-command
-		 (concat "sudo pkg remove " string-of-pkg))))
+		(async-shell-command (concat "sudo pkg remove " string-of-pkg))))
 
 (defun jul-package-menu-execute (&optional noquery)
   "Perform marked Package Menu actions.
