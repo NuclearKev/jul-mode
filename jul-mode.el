@@ -4,7 +4,7 @@
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.3.1
+;; Version: 0.3.2
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 27 July 2016 - Got auto refreshing and multi-function per exceute working
 ;; 25 July 2016 - Added the 'tom' repo
 ;; 8 June 2016 - Works with newest version of jul
 ;; 6 June 2016 - Rewritting jul-mode to work with newer version of jul. (0.3)
@@ -51,8 +52,6 @@
 
 ;;; Todo:
 
-;; Auto-refresh after you execute
-
 ;; Filtering
 
 ;; Don't allow the installation of a package that is all ready installed.
@@ -61,9 +60,6 @@
 ;; Don't allow the installation of packages that aren't the same arch as your
 ;; system
 
-;; Delete *.tlz and temp files after use
-
-;; Fix async issues with install/delete/upgrade at once
 
 ;; Better version comparitor
 
@@ -76,7 +72,7 @@
 (defgroup jul-package nil
   "Manager for Dragora User packages."
   :group 'applications
-  :version "0.3")
+  :version "0.3.2")
 
 (defcustom jul-package-repos
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
@@ -99,7 +95,7 @@ a package can run arbitrary code."
                 :value-type (string :tag "URL or directory name"))
   :risky t
   :group 'jul-package
-  :version "0.3")
+  :version "0.3.2")
 
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
@@ -176,8 +172,9 @@ packages")
     (define-key map "i" 'jul-package-menu-mark-install)
     (define-key map "U" 'jul-package-menu-mark-upgrades)
     (define-key map "r" 'jul-package-menu-refresh)
-    (define-key map "f" 'jul-package-menu-filter)
+    (define-key map "f" 'jul-package-menu-filter) ;not implemented yet
     (define-key map "x" 'jul-package-menu-execute)
+		(define-key map "c" 'jul-package-clean-temp-dir) ;not implemented yet
     (define-key menu-map [mq]
       '(menu-item "Quit" quit-window
 									:help "Quit package selection"))
@@ -203,18 +200,25 @@ packages")
 		(define-key menu-map [mx]
       '(menu-item "Execute Actions" jul-package-menu-execute
 									:help "Perform all the marked actions"))
+		(define-key menu-map [mc]
+			'(menu-item "Clean temp directory" jul-package-clean-temp-dir
+									:help "Remove all .tlz files from the temp directory"))
     map)
   "Local keymap for `jul-package-menu-mode' buffers.")
 
 (defun jul-package-menu-refresh ()
-  "Download the Emacs Lisp package archive.
-This fetches the contents of each archive specified in
-`package-archives', and then refreshes the package menu."
+	"Refresh the package list."
   (interactive)
   (unless (derived-mode-p 'jul-package-menu-mode)
     (user-error "The current buffer is not a Package Menu"))
   (jul-package-refresh-contents)
   (jul-package-menu--generate t t))
+
+(defun jul-package-clean-temp-dir ()
+	"This function just remove all .tlz files from the temperary directory."
+	(interactive)
+	(shell-command (concat "rm " *jul-package-temp-dir* "*.tlz"))
+	(message "Temp directory cleaned!"))
 
 (defun jul-package-menu--find-upgrades ()
 	"This function looks though all the current tabulated entries and finds the
@@ -315,8 +319,10 @@ manipulation tool 'pkg'."
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents (concat repo pack-name "/" full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(async-shell-command (concat "sudo pkg upgrade " string-of-pkg))))
-
+		(shell-command (concat "echo "
+													 (read-passwd "Password: ") " | sudo -S pkg upgrade "
+													 string-of-pkg))
+		(jul-package-menu-refresh)))
 
 (defun jul-package-install (pkg-list)
 	"PKG-LIST should a list of all the packages to be upgraded of the
@@ -338,7 +344,10 @@ using the Dragora's package manipulation tool 'pkg'."
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents	(concat repo pack-name "/" full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(async-shell-command (concat "sudo pkg add " string-of-pkg))))
+		(shell-command (concat "echo "
+													 (read-passwd "Password: ") " | sudo -S pkg add "
+													 string-of-pkg))
+		(jul-package-menu-refresh)))
 
 (defun jul-package-delete (pkg-list)
 	"PKG-LIST should a list of all the packages to be upgraded of the
@@ -352,7 +361,10 @@ installed packages using the Dragora package manipulation tool 'pkg'."
 															 (jul-package-desc-build pkg) ".tlz"))
 						 (full-tlz-path (concat *jul-package-installed-dir* full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(async-shell-command (concat "sudo pkg remove " string-of-pkg))))
+		(shell-command (concat "echo "
+													 (read-passwd "Password: ") " | sudo -S pkg remove "
+													 string-of-pkg))
+		(jul-package-menu-refresh)))
 
 (defun jul-package-menu-execute (&optional noquery)
   "Perform marked Package Menu actions.
