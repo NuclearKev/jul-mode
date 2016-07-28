@@ -23,7 +23,7 @@
 
 ;;; Changelog:
 
-;; 28 July 2016 - Implemented cleaning of temp direcrory.
+;; 28 July 2016 - Implemented cleaning of temp direcrory, pkg output buffer
 ;; 27 July 2016 - Got auto refreshing and multi-function per exceute working
 ;; 25 July 2016 - Added the 'tom' repo
 ;; 8 June 2016 - Works with newest version of jul
@@ -53,7 +53,9 @@
 
 ;;; Todo:
 
-;; Output shell info into blank buffer so you can read it if needed.
+;; Remove temp file from the `jul search' command
+
+;; Automatically open pkg output buffer in seperate window
 
 ;; Filtering
 
@@ -321,9 +323,11 @@ manipulation tool 'pkg'."
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents (concat repo pack-name "/" full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(shell-command (concat "echo "
-													 (read-passwd "Password: ") " | sudo -S pkg upgrade "
-													 string-of-pkg))
+		(let ((buf (get-buffer-create "*pkg upgrade Output*")))
+			(switch-to-buffer buf)
+			(shell-command (concat "echo "
+														 (read-passwd "Password: ") " | sudo -S pkg upgrade "
+														 string-of-pkg) buf))
 		(jul-package-menu-refresh)))
 
 (defun jul-package-install (pkg-list)
@@ -346,9 +350,11 @@ using the Dragora's package manipulation tool 'pkg'."
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents	(concat repo pack-name "/" full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(shell-command (concat "echo "
-													 (read-passwd "Password: ") " | sudo -S pkg add "
-													 string-of-pkg))
+		(let ((buf (get-buffer-create "*pkg add Output*")))
+			(switch-to-buffer buf)
+			(shell-command (concat "echo "
+														 (read-passwd "Password: ") " | sudo -S pkg add "
+														 string-of-pkg) buf))
 		(jul-package-menu-refresh)))
 
 (defun jul-package-delete (pkg-list)
@@ -363,9 +369,11 @@ installed packages using the Dragora package manipulation tool 'pkg'."
 															 (jul-package-desc-build pkg) ".tlz"))
 						 (full-tlz-path (concat *jul-package-installed-dir* full-tlz)))
 				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(shell-command (concat "echo "
-													 (read-passwd "Password: ") " | sudo -S pkg remove "
-													 string-of-pkg))
+		(let ((buf (get-buffer-create "*pkg remove Output*")))
+			(switch-to-buffer buf)
+			(shell-command (concat "echo "
+														 (read-passwd "Password: ") " | sudo -S pkg remove "
+														 string-of-pkg) buf))
 		(jul-package-menu-refresh)))
 
 (defun jul-package-menu-execute (&optional noquery)
