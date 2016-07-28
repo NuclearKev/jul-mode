@@ -4,7 +4,7 @@
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.3.2
+;; Version: 0.3.3
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 28 July 2016 - Implemented cleaning of temp direcrory.
 ;; 27 July 2016 - Got auto refreshing and multi-function per exceute working
 ;; 25 July 2016 - Added the 'tom' repo
 ;; 8 June 2016 - Works with newest version of jul
@@ -52,6 +53,8 @@
 
 ;;; Todo:
 
+;; Output shell info into blank buffer so you can read it if needed.
+
 ;; Filtering
 
 ;; Don't allow the installation of a package that is all ready installed.
@@ -59,7 +62,6 @@
 
 ;; Don't allow the installation of packages that aren't the same arch as your
 ;; system
-
 
 ;; Better version comparitor
 
@@ -72,7 +74,7 @@
 (defgroup jul-package nil
   "Manager for Dragora User packages."
   :group 'applications
-  :version "0.3.2")
+  :version "0.3.3")
 
 (defcustom jul-package-repos
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
@@ -95,7 +97,7 @@ a package can run arbitrary code."
                 :value-type (string :tag "URL or directory name"))
   :risky t
   :group 'jul-package
-  :version "0.3.2")
+  :version "0.3.3")
 
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
@@ -174,7 +176,7 @@ packages")
     (define-key map "r" 'jul-package-menu-refresh)
     (define-key map "f" 'jul-package-menu-filter) ;not implemented yet
     (define-key map "x" 'jul-package-menu-execute)
-		(define-key map "c" 'jul-package-clean-temp-dir) ;not implemented yet
+		(define-key map "C" 'jul-package-clean-temp-dir)
     (define-key menu-map [mq]
       '(menu-item "Quit" quit-window
 									:help "Quit package selection"))
@@ -200,7 +202,7 @@ packages")
 		(define-key menu-map [mx]
       '(menu-item "Execute Actions" jul-package-menu-execute
 									:help "Perform all the marked actions"))
-		(define-key menu-map [mc]
+		(define-key menu-map [mC]
 			'(menu-item "Clean temp directory" jul-package-clean-temp-dir
 									:help "Remove all .tlz files from the temp directory"))
     map)

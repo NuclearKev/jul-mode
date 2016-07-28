@@ -41,3 +41,7 @@ upgrade press 'x' and an asynchronous shell task will be opened. Enter in your
 sudo password and you are golden. If you marked a package you don't wish to
 install/remove/upgrade, you can press 'u' (lowercase) while the cursor is on
 that package and it will be unmarked.
+
+After you do some installs and some updates you may wish to clean out all the
+.tlz files found in the temporary directory. You can do this by running the
+`jul-package-clean-temp-dir' function. To execute it, just hit 'C' (uppercase).
