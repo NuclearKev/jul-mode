@@ -55,8 +55,6 @@
 
 ;; Remove temp file from the `jul search' command
 
-;; Automatically open pkg output buffer in seperate window
-
 ;; Filtering
 
 ;; Don't allow the installation of a package that is all ready installed.
@@ -328,6 +326,7 @@ manipulation tool 'pkg'."
 			(shell-command (concat "echo "
 														 (read-passwd "Password: ") " | sudo -S pkg upgrade "
 														 string-of-pkg) buf))
+		(switch-to-buffer "*jul-package-list*")
 		(jul-package-menu-refresh)))
 
 (defun jul-package-install (pkg-list)
@@ -355,6 +354,7 @@ using the Dragora's package manipulation tool 'pkg'."
 			(shell-command (concat "echo "
 														 (read-passwd "Password: ") " | sudo -S pkg add "
 														 string-of-pkg) buf))
+		(switch-to-buffer "*jul-package-list*")
 		(jul-package-menu-refresh)))
 
 (defun jul-package-delete (pkg-list)
@@ -374,6 +374,7 @@ installed packages using the Dragora package manipulation tool 'pkg'."
 			(shell-command (concat "echo "
 														 (read-passwd "Password: ") " | sudo -S pkg remove "
 														 string-of-pkg) buf))
+		(switch-to-buffer "*jul-package-list*")
 		(jul-package-menu-refresh)))
 
 (defun jul-package-menu-execute (&optional noquery)

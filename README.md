@@ -45,3 +45,7 @@ that package and it will be unmarked.
 After you do some installs and some updates you may wish to clean out all the
 .tlz files found in the temporary directory. You can do this by running the
 `jul-package-clean-temp-dir' function. To execute it, just hit 'C' (uppercase).
+
+If you wish to see the output of the install, remove, or upgrade command, you
+can switch to the `pkg $(command) Output' buffer; where command is add, remove,
+or upgrade.
