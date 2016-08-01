@@ -4,7 +4,7 @@
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.3.3
+;; Version: 0.3.4
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -74,7 +74,7 @@
 (defgroup jul-package nil
   "Manager for Dragora User packages."
   :group 'applications
-  :version "0.3.3")
+  :version "0.3.4")
 
 (defcustom jul-package-repos
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
@@ -97,7 +97,7 @@ a package can run arbitrary code."
                 :value-type (string :tag "URL or directory name"))
   :risky t
   :group 'jul-package
-  :version "0.3.3")
+  :version "0.3.4")
 
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
