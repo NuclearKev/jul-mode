@@ -4,7 +4,7 @@
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.3.4
+;; Version: 0.3.5
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -23,6 +23,8 @@
 
 ;;; Changelog:
 
+;; 2 August 2016 - Blocked installation of other archs, added emacs-arch varible
+;; 1 August 2016 - Output buffers are nice now
 ;; 28 July 2016 - Implemented cleaning of temp direcrory, pkg output buffer
 ;; 27 July 2016 - Got auto refreshing and multi-function per exceute working
 ;; 25 July 2016 - Added the 'tom' repo
@@ -60,9 +62,6 @@
 ;; Don't allow the installation of a package that is all ready installed.
 ;; You must upgrade that one instead.
 
-;; Don't allow the installation of packages that aren't the same arch as your
-;; system
-
 ;; Better version comparitor
 
 ;;; Code:
@@ -74,7 +73,7 @@
 (defgroup jul-package nil
   "Manager for Dragora User packages."
   :group 'applications
-  :version "0.3.4")
+  :version "0.3.5")
 
 (defcustom jul-package-repos
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
@@ -97,7 +96,7 @@ a package can run arbitrary code."
                 :value-type (string :tag "URL or directory name"))
   :risky t
   :group 'jul-package
-  :version "0.3.4")
+  :version "0.3.5")
 
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
@@ -164,6 +163,12 @@ packages")
 (defvar *jul-database* "http://gungre.ch/jul/"
 	"Contains the directory that holds the .db files for jul")
 (put '*jul-database* 'risky-local-variable t)
+
+(defvar *emacs-arch* (if (string-match "x86_64" (version))
+											"x86_64"
+											"i486")
+	"This variable is so you can easily determine which packages you can install."
+	)
 
 (defvar jul-package-menu-mode-map
   (let ((map (make-sparse-keymap))
@@ -243,14 +248,13 @@ the upgrades list."
                      available)))))
 
 		;; Remove packages that aren't the same arch
-		(let ((arch (jul-package-desc-arch (car (last installed)))))
-			(dolist (elt available)							;remove other arch
-				(let ((pack-arch (jul-package-desc-arch (cdr elt))))
-					(unless (or
-									 (string= arch pack-arch)
-									 (string= "noarch" pack-arch)
-									 (string= "any" pack-arch))
-						(setf available (remove elt available))))))
+		(dolist (elt available)							;remove other arch
+			(let ((pack-arch (jul-package-desc-arch (cdr elt))))
+				(unless (or
+								 (string= *emacs-arch* pack-arch)
+								 (string= "noarch" pack-arch)
+								 (string= "any" pack-arch))
+					(setf available (remove elt available)))))
 
 		;; Loop through list of installed packages, finding upgrades.
     (dolist (pkg-desc installed)
@@ -456,7 +460,8 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 (defun jul-package-menu-mark-install (&optional _num)
   "Mark a package for installation and move to the next line."
   (interactive "p")
-  (if (string= (jul-package-menu-get-repo) "installed")
+  (if (or (string= (jul-package-menu-get-repo) "installed")
+					(not (string= (jul-package-menu-get-arch) *emacs-arch*)))
 			(forward-line)
 		(tabulated-list-put-tag "I" t)))
 
@@ -465,6 +470,13 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 				 (entry (and id (assq id tabulated-list-entries))))
     (if entry
 				(aref (cadr entry) 4)
+      "")))
+
+(defun jul-package-menu-get-arch ()
+  (let* ((id (tabulated-list-get-id))
+				 (entry (and id (assq id tabulated-list-entries))))
+    (if entry
+				(aref (cadr entry) 2)
       "")))
 
 (define-derived-mode jul-package-menu-mode tabulated-list-mode "Jul Package Menu"
