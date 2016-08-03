@@ -23,7 +23,8 @@
 
 ;;; Changelog:
 
-;; 2 August 2016 - Blocked installation of other archs, added emacs-arch varible
+;; 3 August 2016 - Made the version comparitor better, still needs work!
+;; 2 August 2016 - Blocked install of other archs, added emacs-arch variable
 ;; 1 August 2016 - Output buffers are nice now
 ;; 28 July 2016 - Implemented cleaning of temp direcrory, pkg output buffer
 ;; 27 July 2016 - Got auto refreshing and multi-function per exceute working
@@ -51,7 +52,8 @@
 
 ;; Version 0.3 and up uses the jul program to list the uninstalled packages.
 ;; So you must have version 0.4 or higher of jul installed for this to
-;; work (I think).
+;; work (I think).  All versions must be ran on Dragora 2.2; D3.x is not
+;; supported yet.
 
 ;;; Todo:
 
@@ -62,7 +64,7 @@
 ;; Don't allow the installation of a package that is all ready installed.
 ;; You must upgrade that one instead.
 
-;; Better version comparitor
+;; Better version comparitor in the works!
 
 ;;; Code:
 
@@ -91,7 +93,7 @@ otherwise it should be an absolute directory name.
  (Other types of URL are currently not supported.)
 
 Only add locations that you trust, since fetching and installing
-a package can run arbitrary code."
+a package can kill you in your sleep."
   :type '(alist :key-type (string :tag "Repo name")
                 :value-type (string :tag "URL or directory name"))
   :risky t
@@ -101,9 +103,6 @@ a package can run arbitrary code."
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
                (:constructor jul-package-desc-create)
-               ;; Has the same interface as the old `define-package',
-               ;; which is still used in the "foo-pkg.el" files. Extra
-               ;; options can be supported by adding additional keys.
                (:constructor
                 jul-package-desc-from-define
                 (name-string version-string arch-string repo-string build-string
@@ -263,11 +262,13 @@ the upgrades list."
 					(let ((number-inst-list-ver
 								 (mapcar #'string-to-number
 												 (split-string
-													(jul-package-desc-version pkg-desc) "[.]")))
+													(jul-package-desc-version pkg-desc)
+													"[a-z._]")))
 								(number-avail-list-ver
 								 (mapcar #'string-to-number
 												 (split-string
-													(jul-package-desc-version (cdr avail-pkg)) "[.]"))))
+													(jul-package-desc-version (cdr avail-pkg))
+													"[a-z._]"))))
 						(when (version-list-<
 									 number-inst-list-ver
 									 number-avail-list-ver)
