@@ -21,11 +21,13 @@ use to do all package management on your Dragora system.
 
 ## How to use jul-mode
 
+### Installation & Configuration
 Using jul-mode is very easy. Since it isn't found in melpa, you must clone it
 from this repo and add '(add-to-list 'load-path "/path/to/jul-mode")' to your
 .emacs file. This will allow you to use the 'load' function to load in jul-mode.
 To load it place '(load "jul-mode.el")' in your .emacs file.
 
+### Usage
 To run jul-mode, simple run the command 'M-x jul-list-package' and a it will
 sync with the user repo and probe your installed directory, then display all
 the available and installed packages.
@@ -49,3 +51,9 @@ After you do some installs and some updates you may wish to clean out all the
 If you wish to see the output of the install, remove, or upgrade command, you
 can switch to the `pkg $(command) Output' buffer; where command is add, remove,
 or upgrade.
+
+### Extras
+If you find yourself wanting to view what packages are installed but don't want
+to sync with the server, you can run the `jul-package-list-installed' command.
+This will only show you what you have installed; perfect if you don't have
+Internet connection. You can still remove packages in this mode.
