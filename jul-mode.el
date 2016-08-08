@@ -66,6 +66,18 @@
 
 ;; Better version comparitor in the works!
 
+;; Check the checksums... Probably important
+
+;;; BUGS
+
+;; If you have a package that uses a hyphen in the version (like
+;; ImageMagick has a version of 7.0.5-6), you will get a package name
+;; that includes the version and under the `version' header, you'll
+;; get the number after the hyphen. So, as an example, ImageMagick
+;; looks like: ImageMagick-7.0.5 and the version is 6 However, the
+;; "fix" to this is to follow the correct package naming guidelines
+;; which doesn't include hyphenated versions.
+
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
@@ -81,7 +93,7 @@
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
 		("kelsoo" . "http://gungre.ch/dragora/repo/kelsoo/")
 		("mprodrigues" . "http://gungre.ch/dragora/repo/mprodrigues/")
-		("tom" . "http://92.19.232.58:82/dragora/repo/tom/")) ;ugly URL...
+		("tom" . "http://92.19.232.58:82/dragora/repo/tom/")) ;don't use this yet
   "An alist of archives from which to fetch.
 The defaults include all the repos found on the gungre.ch site.
 
@@ -169,6 +181,14 @@ packages")
 	"This variable is so you can easily determine which packages you can install."
 	)
 
+(defvar sync-flag t
+	"Non-nil means sync with server.  When nil, don't.
+
+This temperary variable is used to make sure you don't sync with the server
+when you don't want to.  For example, when you try to refresh the list of
+packages, but you are only viewing the installed ones, this will make sure that
+you don't sync with the server on the refresh.")
+
 (defvar jul-package-menu-mode-map
   (let ((map (make-sparse-keymap))
 				(menu-map (make-sparse-keymap "jul-package")))
@@ -217,7 +237,7 @@ packages")
   (interactive)
   (unless (derived-mode-p 'jul-package-menu-mode)
     (user-error "The current buffer is not a Package Menu"))
-  (jul-package-refresh-contents)
+  (jul-package-refresh-contents sync-flag)
   (jul-package-menu--generate t t))
 
 (defun jul-package-clean-temp-dir ()
@@ -616,21 +636,27 @@ This function will remove the directories we don't wish to show in jul-mode."
 																					(remove "removed"
 																									list-of-files)))))))
 
-(defun jul-package-refresh-contents ()
+(defun jul-package-refresh-contents (&optional sync)
 	"This function will grab the current version of the database files on the user
 repo and add all the packages to a big list.
 
+SYNC is used to sync with jul or not.  If SYNC is nil, then do NOT sync with
+the server.  If non-nil, sync with server.
+
 It also probes the installed directory on your system and makes a list of all
 the installed programs."
-	(unless (file-directory-p *jul-package-temp-dir*)
-		(make-directory *jul-package-temp-dir*))
 	(setf *jul-package-repo* nil)					;clear current uninstalled items list
 	(setf *jul-package-installed* nil) ;clear current installed items list
-	(let ((temp-file (concat *jul-package-temp-dir* "temp")))
-		(shell-command "jul sync")
-		(shell-command (concat "jul search > " temp-file))
-		(message "Syncing jul...")
-		(setf *jul-package-repo* (jul-parse-n-place temp-file)))
+
+	(when sync
+		(unless (file-directory-p *jul-package-temp-dir*)
+			(make-directory *jul-package-temp-dir*))
+		(let ((temp-file (concat *jul-package-temp-dir* "temp")))
+			(shell-command "jul sync")
+			(shell-command (concat "jul search > " temp-file))
+			(message "Syncing jul...")
+			(setf *jul-package-repo* (jul-parse-n-place temp-file)))
+		(message "Sync complete"))
 
 	(let* ((installed-pack-dir-contents (directory-files
 																			 *jul-package-installed-dir*))
@@ -649,7 +675,7 @@ the installed programs."
 																	cur-pack-struct)))
 				(setf *jul-package-installed* (cons cur-pack-list
 																						*jul-package-installed*)))))
-	(message "Sync complete"))
+	(message "Complete"))
 
 (defun jul-package-menu--print-info (pkg-desc)
 	"Convert the complicated jul-package-desc-struct, to something the tabulated
@@ -676,11 +702,12 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
 							(cons (jul-package--push (cdr elt) info-list) info-list))))
 
     ;; Uninstalled Packages:
-    (dolist (elt *jul-package-repo*) ;needs to be updated before this
-      (setq name (car elt))
-      (when (or (eq packages t) (memq name packages))
-				(setq info-list
-							(cons (jul-package--push (cdr elt) info-list) info-list))))
+		(when *jul-package-repo*
+			(dolist (elt *jul-package-repo*) ;needs to be updated before this
+				(setq name (car elt))
+				(when (or (eq packages t) (memq name packages))
+					(setq info-list
+								(cons (jul-package--push (cdr elt) info-list) info-list)))))
 
     (setq tabulated-list-entries
 					(mapcar #'jul-package-menu--print-info info-list))))
@@ -699,11 +726,26 @@ or a list of package names (symbols) to display."
  	"A mode used to browser, install, and remove Dragora binaries from the user
 repo and system."
 	(interactive)
+	(setf sync-flag t)
 	(let* ((buf (get-buffer-create "*jul-package-list*"))
 				 (win (get-buffer-window buf)))
 		(with-current-buffer buf
       (jul-package-menu-mode)
-			(jul-package-refresh-contents)
+			(jul-package-refresh-contents sync-flag)
+      (jul-package-menu--generate nil packages))
+		(if win
+				(select-window win)
+			(switch-to-buffer buf))))
+
+(defun jul-list-installed (&optional packages)
+	"A mode used to browser and remove Dragora binaries from the system."
+	(interactive)
+	(setf sync-flag nil)
+	(let* ((buf (get-buffer-create "*jul-package-installed-list*"))
+				 (win (get-buffer-window buf)))
+		(with-current-buffer buf
+      (jul-package-menu-mode)
+			(jul-package-refresh-contents sync-flag)
       (jul-package-menu--generate nil packages))
 		(if win
 				(select-window win)
