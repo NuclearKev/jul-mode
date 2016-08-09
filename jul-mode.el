@@ -4,7 +4,7 @@
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.3.5
+;; Version: 0.3.7
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -23,6 +23,8 @@
 
 ;;; Changelog:
 
+;; 9 August 2016 - Added sha1sum checks
+;; 8 August 2016 - Added a `jul-package-list-installed' command
 ;; 3 August 2016 - Made the version comparitor better, still needs work!
 ;; 2 August 2016 - Blocked install of other archs, added emacs-arch variable
 ;; 1 August 2016 - Output buffers are nice now
@@ -87,7 +89,7 @@
 (defgroup jul-package nil
   "Manager for Dragora User packages."
   :group 'applications
-  :version "0.3.5")
+  :version "0.3.7")
 
 (defcustom jul-package-repos
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
@@ -110,7 +112,7 @@ a package can kill you in your sleep."
                 :value-type (string :tag "URL or directory name"))
   :risky t
   :group 'jul-package
-  :version "0.3.5")
+  :version "0.3.7")
 
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
@@ -325,12 +327,29 @@ This function just concats the package name with the version"
           (jul-package-desc-name pkg-desc)
           (jul-package-desc-version pkg-desc)))
 
+(defun sha1sum-check (full-pack-sha1)
+	"This function check the sha1. Return t if okay, nil if not.
+FULL-PACK-SHA1 is the full name of the package you wish to check."
+	(let ((cur-dir (cadr (split-string (pwd) " "))))
+		(with-temp-buffer
+			(shell-command (concat "cd " *jul-package-temp-dir* " ; sha1sum -c "
+														 full-pack-sha1)
+										 (current-buffer))
+			(goto-char (point-min))
+			(when (search-forward "OK" nil t)
+				t))
+		(shell-command "cd " cur-dir)))
+
 (defun jul-package-upgrade (pkg-list)
 	"PKG-LIST should a list of all the packages to be upgraded of the form
 tabulated-list-id.
 This function will download and install PKG using the Dragora's package
-manipulation tool 'pkg'."
-	(let (string-of-pkg)
+manipulation tool 'pkg'.
+
+This function also checks the sha1sum of the package.  If it fails, that package
+doesn't get added to the string-of-pkg string.  As long as 1 package passes the
+check, the `pass' lexical variable will let you upgrade."
+	(let (string-of-pkg pass)
 		(dolist (pkg pkg-list)
 			(let* ((pack-name (format "%s" (jul-package-desc-name pkg)))
 						 (full-tlz (concat pack-name "-"
@@ -338,27 +357,39 @@ manipulation tool 'pkg'."
 															 (jul-package-desc-arch pkg) "-"
 															 (jul-package-desc-build pkg)
 															 ".tlz"))
+						 (full-sha1 (concat full-tlz ".sha1sum"))
 						 (full-tlz-path (concat *jul-package-temp-dir* full-tlz))
+						 (full-sha1-path (concat *jul-package-temp-dir* full-sha1))
 						 (repo))
 				(dolist (elt jul-package-repos)
 					(when (string= (jul-package-desc-repo pkg) (car elt))
 						(setf repo (cdr elt))))
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents (concat repo pack-name "/" full-tlz)))
-				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(let ((buf (get-buffer-create "*pkg upgrade Output*")))
-			(switch-to-buffer buf)
-			(shell-command (concat "echo "
-														 (read-passwd "Password: ") " | sudo -S pkg upgrade "
-														 string-of-pkg) buf))
-		(switch-to-buffer "*jul-package-list*")
+				(with-temp-file full-sha1-path
+					(url-insert-file-contents	(concat repo pack-name "/" full-sha1)))
+				(when (sha1sum-check full-sha1-path)
+					(message "sha1sum check passed!")
+					(setf pass t)									;at least one package has to pass
+					(setf string-of-pkg (concat string-of-pkg full-tlz-path " ")))))
+		(when pass
+			(let ((buf (get-buffer-create "*pkg upgrade Output*")))
+				(switch-to-buffer buf)
+				(shell-command (concat "echo "
+															 (read-passwd "Password: ") " | sudo -S pkg upgrade "
+															 string-of-pkg) buf))
+			(switch-to-buffer "*jul-package-list*"))
 		(jul-package-menu-refresh)))
 
 (defun jul-package-install (pkg-list)
 	"PKG-LIST should a list of all the packages to be upgraded of the
 form tabulated-list-id.  This function will download and install PKG
-using the Dragora's package manipulation tool 'pkg'."
-	(let (string-of-pkg)
+using the Dragora's package manipulation tool 'pkg'.
+
+This function also checks the sha1sum of the package.  If it fails, that package
+doesn't get added to the string-of-pkg string.  As long as 1 package passes the
+check, the `pass' lexical variable will let you install."
+	(let (string-of-pkg pass)
 		(dolist (pkg pkg-list)
 			(let* ((pack-name (format "%s" (jul-package-desc-name pkg)))
 						 (full-tlz (concat pack-name "-"
@@ -366,20 +397,28 @@ using the Dragora's package manipulation tool 'pkg'."
 															 (jul-package-desc-arch pkg) "-"
 															 (jul-package-desc-build pkg)
 															 ".tlz"))
+						 (full-sha1 (concat full-tlz ".sha1sum"))
 						 (full-tlz-path (concat *jul-package-temp-dir* full-tlz))
+						 (full-sha1-path (concat *jul-package-temp-dir* full-sha1))
 						 (repo))
 				(dolist (elt jul-package-repos)
 					(when (string= (jul-package-desc-repo pkg) (car elt))
 						(setf repo (cdr elt))))
 				(with-temp-file full-tlz-path
 					(url-insert-file-contents	(concat repo pack-name "/" full-tlz)))
-				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
-		(let ((buf (get-buffer-create "*pkg add Output*")))
-			(switch-to-buffer buf)
-			(shell-command (concat "echo "
-														 (read-passwd "Password: ") " | sudo -S pkg add "
-														 string-of-pkg) buf))
-		(switch-to-buffer "*jul-package-list*")
+				(with-temp-file full-sha1-path
+					(url-insert-file-contents	(concat repo pack-name "/" full-sha1)))
+				(when (sha1sum-check full-sha1-path)
+					(message "sha1sum check passed!")
+					(setf pass t)									;at least one package has to pass
+					(setf string-of-pkg (concat string-of-pkg full-tlz-path " ")))))
+		(when pass
+			(let ((buf (get-buffer-create "*pkg add Output*")))
+				(switch-to-buffer buf)
+				(shell-command (concat "echo "
+															 (read-passwd "Password: ") " | sudo -S pkg add "
+															 string-of-pkg) buf))
+			(switch-to-buffer "*jul-package-list*"))
 		(jul-package-menu-refresh)))
 
 (defun jul-package-delete (pkg-list)
