@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 10 August 2016 - Fixed a big mark for installation bug (archs any and noarch)
 ;; 9 August 2016 - Added sha1sum checks
 ;; 8 August 2016 - Added a `jul-package-list-installed' command
 ;; 3 August 2016 - Made the version comparitor better, still needs work!
@@ -64,11 +65,10 @@
 ;; Filtering
 
 ;; Don't allow the installation of a package that is all ready installed.
-;; You must upgrade that one instead.
+;; This technically is done already thanks to `pkg' but it only tells you in the
+;; output buffer.
 
 ;; Better version comparitor in the works!
-
-;; Check the checksums... Probably important
 
 ;;; BUGS
 
@@ -79,6 +79,8 @@
 ;; looks like: ImageMagick-7.0.5 and the version is 6 However, the
 ;; "fix" to this is to follow the correct package naming guidelines
 ;; which doesn't include hyphenated versions.
+
+;; Tom's repo doesn't really work... Especially the sdl package.
 
 ;;; Code:
 
@@ -520,10 +522,13 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 (defun jul-package-menu-mark-install (&optional _num)
   "Mark a package for installation and move to the next line."
   (interactive "p")
-  (if (or (string= (jul-package-menu-get-repo) "installed")
-					(not (string= (jul-package-menu-get-arch) *emacs-arch*)))
-			(forward-line)
-		(tabulated-list-put-tag "I" t)))
+	(let ((pack-arch (jul-package-menu-get-arch)))
+		(if (or (string= (jul-package-menu-get-repo) "installed")
+						(not (or (string= *emacs-arch* pack-arch)
+										 (string= "noarch" pack-arch)
+										 (string= "any" pack-arch))))
+				(forward-line)
+			(tabulated-list-put-tag "I" t))))
 
 (defun jul-package-menu-get-repo ()
   (let* ((id (tabulated-list-get-id))
