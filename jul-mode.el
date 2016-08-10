@@ -70,6 +70,8 @@
 
 ;; Better version comparitor in the works!
 
+;; Remove the `sync-flag' variable
+
 ;;; BUGS
 
 ;; If you have a package that uses a hyphen in the version (like
@@ -98,7 +100,7 @@
 		("kelsoo" . "http://gungre.ch/dragora/repo/kelsoo/")
 		("mprodrigues" . "http://gungre.ch/dragora/repo/mprodrigues/")
 		("tom" . "http://92.19.232.58:82/dragora/repo/tom/")) ;don't use this yet
-  "An alist of archives from which to fetch.
+  "An alist of repos from which to fetch.
 The defaults include all the repos found on the gungre.ch site.
 
 Each element has the form (ID . LOCATION).
@@ -154,8 +156,8 @@ Slots:
 ;; Although not common Emacs Lisp practice, I find it helpful to have earmuffs
 ;; on the "global" variables.
 (defvar *jul-package-installed* nil
-	"This list contains all the packages that are currently installed on your
-system.  Each element is of the form (NAME . J-PKG-DESC) where NAME is the name
+	"This list contains the packages installed on your system.
+Each element is of the form (NAME . J-PKG-DESC) where NAME is the name
 of the package and J-PKG-DESC is a cl-struct-jul-package-desc.")
 (put '*jul-package-installed* 'risky-local-variable t)
 
@@ -167,17 +169,15 @@ of the package and J-PKG-DESC is a cl-struct-jul-package-desc.")
 
 (defvar *jul-package-temp-dir* "~/.emacs.d/elpa/jul-mode/"
 	"This variable contains the directory in which jul-mode stuff is done
-temporarily.")
+temporarily.
+
+It is recommended you pick a nice place.")
 (put '*jul-package-temp-dir* 'risky-local-variable t)
 
 (defvar *jul-package-installed-dir* "/var/db/pkg/"
 	"This variable contains the directory in which Dragora keeps installed
 packages")
 (put '*jul-package-installed-dir* 'risky-local-variable t)
-
-(defvar *jul-database* "http://gungre.ch/jul/"
-	"Contains the directory that holds the .db files for jul")
-(put '*jul-database* 'risky-local-variable t)
 
 (defvar *emacs-arch* (if (string-match "x86_64" (version))
 											"x86_64"
@@ -300,10 +300,11 @@ the upgrades list."
     upgrades))
 
 (defun jul-package-menu-mark-upgrades ()
-	"This function will select all the packages to be upgraded.  Note that when
-upgrading the `pkg' program (Dragora's package manipulation program) will
-automatically update the installed list.  Therefore, you do not need to select
-an installed package for removal."
+	"This function will select all the packages to be upgraded.
+Note that when upgrading the `pkg' program (Dragora's package
+manipulation program) will automatically update the installed list.
+Therefore, you do not need to select an installed package for
+removal."
 	(interactive)
 	(let ((packs-to-upgrade (jul-package-menu--find-upgrades)))
 		(if (null packs-to-upgrade)
@@ -329,6 +330,7 @@ This function just concats the package name with the version"
           (jul-package-desc-name pkg-desc)
           (jul-package-desc-version pkg-desc)))
 
+;; This probably could be written better... But so could 80% of this program
 (defun sha1sum-check (full-pack-sha1)
 	"This function check the sha1. Return t if okay, nil if not.
 FULL-PACK-SHA1 is the full name of the package you wish to check."
@@ -345,8 +347,8 @@ FULL-PACK-SHA1 is the full name of the package you wish to check."
 (defun jul-package-upgrade (pkg-list)
 	"PKG-LIST should a list of all the packages to be upgraded of the form
 tabulated-list-id.
-This function will download and install PKG using the Dragora's package
-manipulation tool 'pkg'.
+This function will download and upgrade all packages using
+the Dragora's package manipulation tool 'pkg'.
 
 This function also checks the sha1sum of the package.  If it fails, that package
 doesn't get added to the string-of-pkg string.  As long as 1 package passes the
@@ -424,7 +426,7 @@ check, the `pass' lexical variable will let you install."
 		(jul-package-menu-refresh)))
 
 (defun jul-package-delete (pkg-list)
-	"PKG-LIST should a list of all the packages to be upgraded of the
+	"PKG-LIST should a list of all the packages to be removed of the
 form tabulated-list-id.  This function will uninstall and remove
 installed packages using the Dragora package manipulation tool 'pkg'."
 	(let (string-of-pkg)
@@ -446,6 +448,7 @@ installed packages using the Dragora package manipulation tool 'pkg'."
 (defun jul-package-menu-execute (&optional noquery)
   "Perform marked Package Menu actions.
 Packages marked for installation are downloaded and installed;
+Packages marked for upgrade are downloaded and upgraded;
 packages marked for deletion are removed.
 Optional argument NOQUERY non-nil means do not ask the user to confirm."
   (interactive)
@@ -507,20 +510,24 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 				(jul-package-menu--generate t t)
       (message "No operations specified."))))
 
-(defun jul-package-menu-mark-delete (&optional _num)
+(defun jul-package-menu-mark-delete ()
 	"Mark current package for deletion/removal and move to the next line."
 	(interactive "p")
 	(if (string= (jul-package-menu-get-repo) "installed")
 			(tabulated-list-put-tag "D" t)
 		(forward-line)))
 
-(defun jul-package-menu-mark-unmark (&optional _num)
-	"Clear any marks on a package and move to the next line."
+(defun jul-package-menu-mark-unmark ()
+	"Clear any mark on a package and move to the next line."
 	(interactive "p")
 	(tabulated-list-put-tag " " t))
 
-(defun jul-package-menu-mark-install (&optional _num)
-  "Mark a package for installation and move to the next line."
+(defun jul-package-menu-mark-install ()
+  "Mark a package for installation and move to the next line.
+
+This function will only let you select packages that are the
+same arch as your system (and anything that isn't arch
+specific)."
   (interactive "p")
 	(let ((pack-arch (jul-package-menu-get-arch)))
 		(if (or (string= (jul-package-menu-get-repo) "installed")
@@ -531,6 +538,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 			(tabulated-list-put-tag "I" t))))
 
 (defun jul-package-menu-get-repo ()
+	"Grab the current package's repo."
   (let* ((id (tabulated-list-get-id))
 				 (entry (and id (assq id tabulated-list-entries))))
     (if entry
@@ -538,6 +546,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
       "")))
 
 (defun jul-package-menu-get-arch ()
+		"Grab the current package's arch."
   (let* ((id (tabulated-list-get-id))
 				 (entry (and id (assq id tabulated-list-entries))))
     (if entry
@@ -601,6 +610,9 @@ SPLIT-PACK."
 		split-pack))
 
 (defun jul-parse-n-place (file)
+	"Grab each package that is found in FILE and place into a list.
+
+This is rather inefficient and will be changed soon."
 	(with-temp-buffer
 		(insert-file-contents file)
 		(let ((num-of-packs (count-lines (point-min) (point-max)))
@@ -650,14 +662,10 @@ buffer is killed afterwards.  Return the last value in BODY."
        (insert-file-contents (expand-file-name ,file ,location)))
      ,@body))
 
-(defun jul-package--download-one-repo (repo file)
+(defun jul-package--download-one-repo (file repo)
   "Retrieve an repo FILE from REPO, and cache it.
 REPO should be a cons cell of the form (NAME . LOCATION),
-similar to an entry in `*jul-package-repo*'.  Save the cached copy to
-`*jul-package-temp-dir*' under the 'repos/' directory.
-SERVER-FILE is the name of the file on the server.  Since sometimes this must be
-empty, we need two seperate args; one for server name and the other for the
-local name."
+similar to an entry in `*jul-package-repo*'."
   (let ((dir (expand-file-name (format "repos/%s" (car repo))
 															 *jul-package-temp-dir*)))
     (jul-package--with-work-buffer (cdr repo) file
@@ -681,14 +689,12 @@ This function will remove the directories we don't wish to show in jul-mode."
 																									list-of-files)))))))
 
 (defun jul-package-refresh-contents (&optional sync)
-	"This function will grab the current version of the database files on the user
-repo and add all the packages to a big list.
-
-SYNC is used to sync with jul or not.  If SYNC is nil, then do NOT sync with
-the server.  If non-nil, sync with server.
-
-It also probes the installed directory on your system and makes a list of all
-the installed programs."
+	"This function will grab the current version of the
+database files on the user repo and add all the packages to a
+big list.  SYNC is used to sync with jul or not.  If SYNC is
+nil, then do NOT sync with the server.  If non-nil, sync with
+server.  It also probes the installed directory on your
+system and makes a list of all the installed programs."
 	(setf *jul-package-repo* nil)					;clear current uninstalled items list
 	(setf *jul-package-installed* nil) ;clear current installed items list
 
@@ -734,7 +740,7 @@ mode can read.  PKG-DESC is of form jul-package-desc-struct"
 			,`[,(list (symbol-name name)) ,version ,arch ,build ,repo ,description])))
 
 (defun jul-package-menu--refresh (&optional packages)
-	"Refresh the displayed menu"
+	"Refresh the displayed menu."
   (unless packages (setq packages t))
   (let ((info-list nil)
 				(name nil))
