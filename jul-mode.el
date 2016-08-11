@@ -4,7 +4,7 @@
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.3.7
+;; Version: 0.3.8
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 11 August 2016 - Bug fixes, querying to clean temp after install/upgrade,docs
 ;; 10 August 2016 - Fixed a big mark for installation bug (archs any and noarch)
 ;; 9 August 2016 - Added sha1sum checks
 ;; 8 August 2016 - Added a `jul-package-list-installed' command
@@ -93,7 +94,7 @@
 (defgroup jul-package nil
   "Manager for Dragora User packages."
   :group 'applications
-  :version "0.3.7")
+  :version "0.3.8")
 
 (defcustom jul-package-repos
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
@@ -116,7 +117,7 @@ a package can kill you in your sleep."
                 :value-type (string :tag "URL or directory name"))
   :risky t
   :group 'jul-package
-  :version "0.3.7")
+  :version "0.3.8")
 
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
@@ -245,9 +246,12 @@ you don't sync with the server on the refresh.")
   (jul-package-menu--generate t t))
 
 (defun jul-package-clean-temp-dir ()
-	"This function just remove all .tlz files from the temperary directory."
+	"This function just remove all files from the temperary directory.
+
+It purges the directory of all tlz and sha1sums."
 	(interactive)
-	(shell-command (concat "rm " *jul-package-temp-dir* "*.tlz"))
+	(shell-command (format "rm %s*.tlz %s*.sha1sum"
+									*jul-package-temp-dir* *jul-package-temp-dir*))
 	(message "Temp directory cleaned!"))
 
 (defun jul-package-menu--find-upgrades ()
@@ -442,7 +446,9 @@ installed packages using the Dragora package manipulation tool 'pkg'."
 			(shell-command (concat "echo "
 														 (read-passwd "Password: ") " | sudo -S pkg remove "
 														 string-of-pkg) buf))
-		(switch-to-buffer "*jul-package-list*")
+		(if (member "*jul-package-list*" (mapcar #'buffer-name (buffer-list)))
+				(switch-to-buffer "*jul-package-list*")
+			(switch-to-buffer "*jul-package-installed-list*"))
 		(jul-package-menu-refresh)))
 
 (defun jul-package-menu-execute (&optional noquery)
@@ -469,6 +475,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 								((eq cmd ?U)
 								 (push pkg-desc upgrade-list))))
 				(forward-line)))
+
     (when install-list
       (if (or
            noquery
@@ -494,6 +501,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 											(mapconcat #'jul-package-desc-full-name
 																 delete-list ", ")))))
 					(jul-package-delete delete-list)))
+
     (when upgrade-list
       (if (or
            noquery
@@ -506,23 +514,37 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
                       (mapconcat #'jul-package-desc-full-name
                                  upgrade-list ", ")))))
 					(jul-package-upgrade upgrade-list)))
+		;; Remove the tlz files that you probably don't need
+		(when (or install-list upgrade-list)	;anything with a new .tlz
+			(let ((tlz-list (append install-list upgrade-list)))
+				(if (or
+						 noquery
+						 (yes-or-no-p
+							(if (= (length tlz-list) 1)
+									(format "Clean package `%s' from temp directory? "
+													(jul-package-desc-full-name (car tlz-list)))
+								(format "Clean these %d packages (%s) from temp directory? "
+												(length tlz-list)
+												(mapconcat #'jul-package-desc-full-name
+																	 tlz-list ", ")))))
+						(jul-package-clean-temp-dir))))
     (if (or delete-list install-list upgrade-list)
 				(jul-package-menu--generate t t)
       (message "No operations specified."))))
 
-(defun jul-package-menu-mark-delete ()
+(defun jul-package-menu-mark-delete (&optional _num)
 	"Mark current package for deletion/removal and move to the next line."
 	(interactive "p")
 	(if (string= (jul-package-menu-get-repo) "installed")
 			(tabulated-list-put-tag "D" t)
 		(forward-line)))
 
-(defun jul-package-menu-mark-unmark ()
+(defun jul-package-menu-mark-unmark (&optional _num)
 	"Clear any mark on a package and move to the next line."
 	(interactive "p")
 	(tabulated-list-put-tag " " t))
 
-(defun jul-package-menu-mark-install ()
+(defun jul-package-menu-mark-install (&optional _num)
   "Mark a package for installation and move to the next line.
 
 This function will only let you select packages that are the
