@@ -4,7 +4,7 @@
 
 ;; Author: Kevin Bloom <kdb4@openmailbox.org>
 ;; Created: 16 May 2016
-;; Version: 0.3.8
+;; Version: 0.3.9
 ;; Keywords: application
 ;; Package-Requires: ((tabulated-list "1.0"))
 
@@ -23,6 +23,7 @@
 
 ;;; Changelog:
 
+;; 12 August 2016 - Querying to clean only removed selected files (bug fix)
 ;; 11 August 2016 - Bug fixes, querying to clean temp after install/upgrade,docs
 ;; 10 August 2016 - Fixed a big mark for installation bug (archs any and noarch)
 ;; 9 August 2016 - Added sha1sum checks
@@ -94,7 +95,7 @@
 (defgroup jul-package nil
   "Manager for Dragora User packages."
   :group 'applications
-  :version "0.3.8")
+  :version "0.3.9")
 
 (defcustom jul-package-repos
 	'(("frusen" . "http://gungre.ch/dragora/repo/frusen/stable/")
@@ -117,7 +118,7 @@ a package can kill you in your sleep."
                 :value-type (string :tag "URL or directory name"))
   :risky t
   :group 'jul-package
-  :version "0.3.8")
+  :version "0.3.9")
 
 (cl-defstruct (jul-package-desc
                ;; Rename the default constructor from `make-package-desc'.
@@ -233,7 +234,8 @@ you don't sync with the server on the refresh.")
 									:help "Perform all the marked actions"))
 		(define-key menu-map [mC]
 			'(menu-item "Clean temp directory" jul-package-clean-temp-dir
-									:help "Remove all .tlz files from the temp directory"))
+									:help
+									"Remove all .tlz & sha1sum files from the temp directory"))
     map)
   "Local keymap for `jul-package-menu-mode' buffers.")
 
@@ -451,6 +453,20 @@ installed packages using the Dragora package manipulation tool 'pkg'."
 			(switch-to-buffer "*jul-package-installed-list*"))
 		(jul-package-menu-refresh)))
 
+(defun jul-package-remove-tlz (pkg-list)
+	"PKG-LIST should be a list of all the packages to be removed from the temp
+directory of the from tabulated-list-id."
+	(let (string-of-pkg)
+		(dolist (pkg pkg-list)
+			(let* ((full-tlz (concat (format "%s" (jul-package-desc-name pkg)) "-"
+															 (jul-package-desc-version pkg) "-"
+															 (jul-package-desc-arch pkg) "-"
+															 (jul-package-desc-build pkg) ".tlz*"))
+						 (full-tlz-path (concat *jul-package-temp-dir* full-tlz)))
+				(setf string-of-pkg (concat string-of-pkg full-tlz-path " "))))
+		(shell-command (concat "rm " string-of-pkg)))
+	(message "Files removed!"))
+
 (defun jul-package-menu-execute (&optional noquery)
   "Perform marked Package Menu actions.
 Packages marked for installation are downloaded and installed;
@@ -527,7 +543,7 @@ Optional argument NOQUERY non-nil means do not ask the user to confirm."
 												(length tlz-list)
 												(mapconcat #'jul-package-desc-full-name
 																	 tlz-list ", ")))))
-						(jul-package-clean-temp-dir))))
+						(jul-package-remove-tlz tlz-list))))
     (if (or delete-list install-list upgrade-list)
 				(jul-package-menu--generate t t)
       (message "No operations specified."))))
