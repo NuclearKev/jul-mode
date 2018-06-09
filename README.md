@@ -1,3 +1,7 @@
+# NOTE: This repo has been moved to [here][jul-mode]!
+
+[jul-mode]: https://notabug.org/nuclearkev/jul-mode
+
 # jul-mode
 
 jul-mode is a package for Emacs that allows you to easily manipulate
